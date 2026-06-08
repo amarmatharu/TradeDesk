@@ -1392,3 +1392,52 @@ async def health():
         "broker_available": broker_ok,
         "ts": _t.time(),
     }
+
+
+# ─── Self-update ──────────────────────────────────────────────────────────────
+
+import subprocess as _sp
+
+_PROJ_DIR = _os.path.join(_os.path.dirname(__file__), "..")
+
+def _git(*args):
+    try:
+        return _sp.check_output(["git", "-C", _PROJ_DIR, *args],
+                                stderr=_sp.DEVNULL, timeout=15).decode().strip()
+    except Exception:
+        return ""
+
+@app.get("/api/version")
+async def version():
+    """Current code version + whether an update is available on the remote."""
+    current = _git("rev-parse", "--short", "HEAD")
+    branch = _git("rev-parse", "--abbrev-ref", "HEAD")
+    subject = _git("log", "-1", "--pretty=%s")
+    has_remote = bool(_git("remote", "get-url", "origin"))
+    update_available, behind = False, 0
+    if has_remote:
+        _git("fetch", "origin", branch or "main")
+        local = _git("rev-parse", "HEAD")
+        remote = _git("rev-parse", f"origin/{branch}")
+        if local and remote and local != remote:
+            update_available = True
+            try:
+                behind = int(_git("rev-list", "--count", f"{local}..{remote}") or 0)
+            except Exception:
+                behind = 0
+    return {
+        "version": current, "branch": branch, "subject": subject,
+        "has_remote": has_remote, "update_available": update_available,
+        "commits_behind": behind,
+    }
+
+@app.post("/api/update")
+async def do_update():
+    """Run the self-update script (pull, rebuild, restart) in the background."""
+    script = _os.path.join(_PROJ_DIR, "update.sh")
+    if not _os.path.exists(script):
+        raise HTTPException(404, "update.sh not found")
+    # Fire-and-forget; backend will be restarted by the script
+    _sp.Popen(["/bin/bash", script], cwd=_PROJ_DIR,
+              stdout=_sp.DEVNULL, stderr=_sp.DEVNULL, start_new_session=True)
+    return {"status": "update_started", "note": "Backend will restart; the app reloads automatically."}

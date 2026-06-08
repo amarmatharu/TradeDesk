@@ -2,6 +2,9 @@ const { app, BrowserWindow, Menu, shell } = require('electron')
 const path = require('path')
 const { spawn, execSync } = require('child_process')
 const http = require('http')
+const fs = require('fs')
+
+const RELOAD_SIGNAL = '/tmp/tradedesk-reload-signal'
 
 // Fix GPU crash on macOS 15+ / Tahoe
 app.disableHardwareAcceleration()
@@ -103,9 +106,78 @@ async function createWindow() {
 
   mainWindow.on('closed', () => { mainWindow = null })
 
+  // ─── Auto-reload after a self-update ──────────────────────────────────────
+  // update.sh touches RELOAD_SIGNAL after pulling + rebuilding + restarting the
+  // backend. When we see it, wait for the backend to be healthy, then reload the
+  // window so the new frontend build is picked up (UI is served from localhost).
+  startReloadWatcher()
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url)
     return { action: 'deny' }
+  })
+}
+
+// ─── Reload-after-update watcher ───────────────────────────────────────────────
+let _lastReloadMtime = 0
+function startReloadWatcher() {
+  try { _lastReloadMtime = fs.statSync(RELOAD_SIGNAL).mtimeMs } catch (e) { _lastReloadMtime = 0 }
+  setInterval(() => {
+    let m = 0
+    try { m = fs.statSync(RELOAD_SIGNAL).mtimeMs } catch (e) { return }
+    if (m > _lastReloadMtime) {
+      _lastReloadMtime = m
+      console.log('[Electron] Update signal detected — waiting for backend, then reloading')
+      waitForBackendThenReload(30)
+    }
+  }, 3000)
+}
+
+function waitForBackendThenReload(retries) {
+  const check = (n) => {
+    http.get(`http://127.0.0.1:${BACKEND_PORT}/api/health`, res => {
+      if (mainWindow) { mainWindow.reload(); mainWindow.focus() }
+    }).on('error', () => {
+      if (n > 0) setTimeout(() => check(n - 1), 2000)
+    })
+  }
+  check(retries)
+}
+
+// ─── Trigger self-update via backend ───────────────────────────────────────────
+function triggerUpdate() {
+  const { dialog } = require('electron')
+  // Check version first
+  http.get(`http://127.0.0.1:${BACKEND_PORT}/api/version`, res => {
+    let body = ''
+    res.on('data', d => body += d)
+    res.on('end', () => {
+      let v = {}
+      try { v = JSON.parse(body) } catch (e) {}
+      if (!v.has_remote) {
+        dialog.showMessageBox(mainWindow, { type: 'info', message: 'No update source configured',
+          detail: 'Add a git remote (origin) to enable updates.\nSee update.sh for instructions.' })
+        return
+      }
+      if (!v.update_available) {
+        dialog.showMessageBox(mainWindow, { type: 'info', message: 'You\'re up to date',
+          detail: `Version ${v.version} (${v.subject || ''})` })
+        return
+      }
+      const choice = dialog.showMessageBoxSync(mainWindow, {
+        type: 'question', buttons: ['Update now', 'Later'], defaultId: 0,
+        message: `Update available — ${v.commits_behind} new commit(s)`,
+        detail: 'The app will pull the latest code, rebuild, restart, and reload automatically.'
+      })
+      if (choice === 0) {
+        const req = http.request(`http://127.0.0.1:${BACKEND_PORT}/api/update`, { method: 'POST' })
+        req.end()
+        dialog.showMessageBox(mainWindow, { type: 'info', message: 'Updating…',
+          detail: 'TradeDesk will reload automatically when the update finishes (about a minute).' })
+      }
+    })
+  }).on('error', () => {
+    dialog.showMessageBox(mainWindow, { type: 'error', message: 'Backend not reachable' })
   })
 }
 
@@ -117,6 +189,7 @@ function buildMenu() {
       submenu: [
         { label: 'About TradeDesk', role: 'about' },
         { type: 'separator' },
+        { label: 'Check for Updates…', click: () => triggerUpdate() },
         { label: 'Settings (⌘,)', accelerator: 'Cmd+,',
           click: () => mainWindow?.webContents.send('open-settings') },
         { type: 'separator' },
