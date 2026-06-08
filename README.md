@@ -1,8 +1,45 @@
 # TradeDesk — AI Trading Platform
 
-A personalized desktop trading platform powered by Claude AI. Runs as a native Mac app.
+A personalized, multi-agent desktop trading platform powered by Claude AI. Runs as a native Mac app.
 
-## Quick Start
+## Fresh-machine setup (one command)
+
+```bash
+git clone git@github.com:amarmatharu/TradeDesk.git
+cd TradeDesk
+./setup.sh            # installs deps, builds UI, sets up services
+nano backend/.env     # paste your API keys (see backend/.env.example)
+launchctl kickstart -k gui/$(id -u)/com.tradedesk.backend
+```
+
+`setup.sh` installs Python + Node deps, builds the frontend, installs the
+launchd services (backend + watchdog + auto-update), and starts everything.
+Required keys: **Anthropic** (AI) and **Alpaca paper** (prices + execution).
+Optional: **Benzinga** (news).
+
+Build the desktop app:
+```bash
+cd frontend && npm run electron:build
+open dist-electron/*.dmg   # drag TradeDesk to Applications
+```
+
+## Self-update
+
+Once a git remote is set, the app auto-pulls pushes every 15 min (or via
+menu → *Check for Updates…*). `update.sh` rebuilds only what changed and the
+app reloads itself. Only changes to `frontend/electron/main.js` / `preload.js`
+need a manual `.dmg` rebuild.
+
+## Operations
+
+- `./status.sh` — full live status (P&L, positions, strategies, breakers, heartbeat)
+- `./watchdog.sh` — liveness monitor (runs via launchd)
+- `./update.sh` — pull + rebuild + restart
+- Services: `com.tradedesk.{backend,watchdog,autoupdate}` (in `~/Library/LaunchAgents`)
+
+---
+
+## Legacy quick start (dev)
 
 ### 1. Add your Anthropic API key
 ```bash
