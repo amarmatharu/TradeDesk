@@ -1,0 +1,41 @@
+{
+  "name": "tradedesk",
+  "version": "1.0.0",
+  "description": "AI Trading Platform",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "ELECTRON_DEV=true electron .",
+    "build": "npm run build:frontend && electron-builder --mac",
+    "build:frontend": "cd ../frontend && npm run build"
+  },
+  "build": {
+    "appId": "com.tradedesk.app",
+    "productName": "TradeDesk",
+    "mac": {
+      "category": "public.app-category.finance",
+      "icon": "assets/icon.icns",
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }]
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "assets/**"
+    ],
+    "extraResources": [
+      { "from": "../backend", "to": "backend", "filter": ["**/*", "!__pycache__", "!*.pyc"] },
+      { "from": "../frontend/dist", "to": "frontend_dist" }
+    ],
+    "dmg": {
+      "title": "TradeDesk ${version}"
+    }
+  },
+  "dependencies": {
+    "electron-log": "^5.1.7",
+    "electron-store": "^8.2.0"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  }
+}

@@ -1,0 +1,30 @@
+# ─── Secrets (NEVER commit) ───────────────────────────────
+backend/.env
+*.env
+.env
+
+# ─── Local data / state (machine-specific) ────────────────
+backend/trading.db
+backend/trading.db-*
+backend/settings.json
+backend/.backtest_cache/
+*.log
+
+# ─── Python ───────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# ─── Node / build artifacts ───────────────────────────────
+node_modules/
+frontend/node_modules/
+electron/node_modules/
+frontend/dist/
+dist-electron/
+*.dmg
+
+# ─── OS ───────────────────────────────────────────────────
+.DS_Store
+*.swp

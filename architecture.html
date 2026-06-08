@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TradeDesk — System Architecture</title>
+<style>
+  :root {
+    --bg: #0d1117; --panel: #161b22; --panel2: #1c2128; --border: #21262d;
+    --text: #e6edf3; --muted: #8b949e; --blue: #58a6ff; --blue2: #388bfd;
+    --green: #3fb950; --red: #f85149; --orange: #f78166; --yellow: #e3b341; --purple: #bc8cff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    line-height: 1.6; font-size: 15px;
+  }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: var(--panel); }
+  ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 5px; }
+
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 0 24px 80px; }
+
+  /* Hero */
+  header.hero {
+    text-align: center; padding: 70px 24px 50px;
+    background: radial-gradient(ellipse at top, #1f6feb22, transparent 70%);
+    border-bottom: 1px solid var(--border);
+  }
+  .logo { font-size: 52px; }
+  .hero h1 { font-size: 42px; font-weight: 850; letter-spacing: -1.5px; margin: 8px 0 4px; }
+  .hero h1 .ai { color: var(--blue2); }
+  .hero .tagline { color: var(--muted); font-size: 17px; max-width: 600px; margin: 0 auto; }
+  .hero .pills { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 24px; }
+  .pill { background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+    padding: 6px 16px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .pill b { color: var(--text); }
+
+  /* Stat strip */
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: -28px 0 50px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px; text-align: center; }
+  .stat .n { font-size: 32px; font-weight: 850; color: var(--blue); }
+  .stat .l { font-size: 12px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+  section { margin-top: 56px; }
+  h2 { font-size: 13px; font-weight: 800; color: var(--muted); letter-spacing: 1.5px;
+    text-transform: uppercase; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  h2 .num { color: var(--blue2); margin-right: 8px; }
+
+  /* Flow diagram */
+  .flow { display: flex; flex-direction: column; gap: 0; align-items: center; }
+  .layer { background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 24px; width: 100%; text-align: center; }
+  .layer .title { font-weight: 700; font-size: 15px; }
+  .layer .desc { color: var(--muted); font-size: 13px; margin-top: 2px; }
+  .arrow { color: var(--muted); font-size: 20px; padding: 6px 0; }
+  .layer.feeds { border-color: #1f6feb44; background: linear-gradient(180deg,#1f6feb11,transparent); }
+  .layer.bus { border-color: var(--purple); }
+  .layer.agents { border-color: var(--green); }
+  .layer.output { border-color: var(--yellow); }
+
+  /* Agent pipeline */
+  .pipeline { display: flex; gap: 10px; align-items: stretch; overflow-x: auto; padding-bottom: 8px; }
+  .agent { flex: 1; min-width: 150px; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px; position: relative; }
+  .agent .icon { font-size: 26px; }
+  .agent .name { font-weight: 800; font-size: 16px; margin-top: 6px; }
+  .agent .model { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+    display: inline-block; margin-top: 6px; }
+  .model.haiku { background: #bc8cff22; color: var(--purple); }
+  .model.sonnet { background: #1f6feb22; color: var(--blue); }
+  .agent .role { font-size: 12px; color: var(--muted); margin-top: 10px; }
+  .agent .cost { font-size: 11px; color: var(--green); margin-top: 8px; font-weight: 600; }
+  .agent .step { position: absolute; top: -10px; left: -10px; width: 24px; height: 24px;
+    background: var(--blue2); color: #fff; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 12px; font-weight: 800; }
+
+  .funnel { margin-top: 16px; background: var(--panel2); border-radius: 10px; padding: 14px 18px;
+    font-size: 13px; color: var(--muted); text-align: center; }
+  .funnel b { color: var(--text); }
+
+  /* Two-col */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card h3 { font-size: 15px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; color: var(--muted); font-weight: 700; font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  td.mono { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--blue); }
+  .tag { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; }
+  .tag.get { background: #3fb95022; color: var(--green); }
+  .tag.post { background: #1f6feb22; color: var(--blue); }
+  .tag.sse { background: #bc8cff22; color: var(--purple); }
+
+  /* Lifecycle */
+  .lifecycle { display: flex; flex-direction: column; gap: 8px; }
+  .lc-row { display: flex; align-items: center; gap: 14px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; }
+  .lc-row .stage { font-weight: 700; min-width: 130px; }
+  .lc-row .detail { color: var(--muted); font-size: 13px; }
+  .lc-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  /* Modes */
+  .modes { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; }
+  .mode { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
+  .mode .mname { font-weight: 800; font-size: 13px; font-family: ui-monospace, monospace; }
+  .mode .mdesc { font-size: 11px; color: var(--muted); margin-top: 6px; }
+  .mode.active { border-color: var(--green); background: #3fb95011; }
+  .mode.active .mname { color: var(--green); }
+  .mode.locked { opacity: 0.55; }
+
+  /* Stack chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 14px; font-size: 13px; }
+  .chip b { color: var(--text); } .chip span { color: var(--muted); }
+
+  /* Tech badges grid */
+  .tech-grid { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+  .tech { display: flex; justify-content: space-between; padding: 10px 14px; background: var(--panel);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+  .tech .k { color: var(--muted); } .tech .v { font-weight: 600; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 60px;
+    padding-top: 24px; border-top: 1px solid var(--border); }
+
+  @media (max-width: 720px) {
+    .stats, .cols, .modes, .tech-grid { grid-template-columns: 1fr 1fr; }
+    .hero h1 { font-size: 32px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="logo">📈</div>
+  <h1>TradeDesk <span class="ai">AI</span></h1>
+  <p class="tagline">A multi-agent trading system that ingests market data &amp; news, autonomously
+    surfaces trade setups, manages open positions, and learns from every closed trade.</p>
+  <div class="pills">
+    <span class="pill">🖥 <b>Electron</b> Desktop App</span>
+    <span class="pill">🐍 <b>FastAPI</b> Backend</span>
+    <span class="pill">🧠 <b>Claude</b> Agents</span>
+    <span class="pill">📊 <b>Alpaca</b> + <b>Benzinga</b> + <b>SEC EDGAR</b></span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="stats">
+    <div class="stat"><div class="n">5</div><div class="l">AI Agents</div></div>
+    <div class="stat"><div class="n">48</div><div class="l">API Endpoints</div></div>
+    <div class="stat"><div class="n">11</div><div class="l">DB Tables</div></div>
+    <div class="stat"><div class="n">~8.7k</div><div class="l">Lines of Code</div></div>
+  </div>
+
+  <!-- SYSTEM FLOW -->
+  <section>
+    <h2><span class="num">01</span>System Flow</h2>
+    <div class="flow">
+      <div class="layer feeds">
+        <div class="title">📡 Data Feeds</div>
+        <div class="desc">Benzinga news (20s) · SEC EDGAR 8-K + Form 4 (60s) · Alpaca prices (live)</div>
+      </div>
+      <div class="arrow">▼ &nbsp; publish()</div>
+      <div class="layer bus">
+        <div class="title">🔀 Event Bus</div>
+        <div class="desc">Persists every event to SQLite · broadcasts to UI (SSE) + agent handlers</div>
+      </div>
+      <div class="arrow">▼ &nbsp; handle_event()</div>
+      <div class="layer agents">
+        <div class="title">🤖 Agent Pipeline</div>
+        <div class="desc">Scout → Research → Risk → Trader</div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="layer output">
+        <div class="title">✅ Pending Trade → You Approve → Open Position</div>
+        <div class="desc">Monitor watches it · Journal learns from it when closed</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- AGENT PIPELINE -->
+  <section>
+    <h2><span class="num">02</span>The Agent Pipeline</h2>
+    <div class="pipeline">
+      <div class="agent">
+        <div class="step">1</div>
+        <div class="icon">🕵️</div>
+        <div class="name">Scout</div>
+        <div class="model haiku">HAIKU 4.5</div>
+        <div class="role">Triage every event 1–10. Filter noise. Only ≥7 advances.</div>
+        <div class="cost">~$0.0002 / call</div>
+      </div>
+      <div class="agent">
+        <div class="step">2</div>
+        <div class="icon">🔬</div>
+        <div class="name">Research</div>
+        <div class="model sonnet">SONNET 4.6</div>
+        <div class="role">Pull live price + technicals. Build full thesis: entry, stop, targets, R:R.</div>
+        <div class="cost">~$0.02 / call</div>
+      </div>
+      <div class="agent">
+        <div class="step">3</div>
+        <div class="icon">🛡️</div>
+        <div class="name">Risk</div>
+        <div class="model sonnet">SONNET 4.6</div>
+        <div class="role">Portfolio rule checks. Sector correlation. Veto power.</div>
+        <div class="cost">~$0.01 / call</div>
+      </div>
+      <div class="agent">
+        <div class="step">4</div>
+        <div class="icon">💼</div>
+        <div class="name">Trader</div>
+        <div class="model sonnet">SONNET 4.6</div>
+        <div class="role">Synthesize all. Final call: BUY / WAIT / PASS + confidence.</div>
+        <div class="cost">~$0.01 / call</div>
+      </div>
+    </div>
+    <div class="funnel">
+      <b>Funnel:</b> ~1,000 events/day → ~300 Scout → ~15 Research → ~3 Risk-pass →
+      <b>1–2 trades/day</b> &nbsp;·&nbsp; Total AI cost: <b>~$0.30–0.50/day</b>
+    </div>
+  </section>
+
+  <!-- POSITION LIFECYCLE -->
+  <section>
+    <h2><span class="num">03</span>Position Lifecycle &amp; Learning Loop</h2>
+    <div class="lifecycle">
+      <div class="lc-row"><span class="lc-dot" style="background:var(--green)"></span>
+        <span class="stage">OPEN</span><span class="detail">Approved trade becomes a live position</span></div>
+      <div class="lc-row"><span class="lc-dot" style="background:var(--blue)"></span>
+        <span class="stage">MONITOR (60s)</span><span class="detail">Hard rules: stop hit → exit · T1 hit → trim 50% + move stop to breakeven · T2 → close · 15d flat → time stop. AI checks thesis every 5 min.</span></div>
+      <div class="lc-row"><span class="lc-dot" style="background:var(--red)"></span>
+        <span class="stage">CLOSED</span><span class="detail">Exit publishes CRITICAL bus event → auto-triggers Journal</span></div>
+      <div class="lc-row"><span class="lc-dot" style="background:var(--yellow)"></span>
+        <span class="stage">JOURNAL</span><span class="detail">Post-mortem: what worked/failed, lessons, quality score, pattern tags, R-multiple</span></div>
+      <div class="lc-row"><span class="lc-dot" style="background:var(--purple)"></span>
+        <span class="stage">LEARNINGS</span><span class="detail">Per-pattern win-rate + avg-R → injected back into Scout &amp; Research prompts. The system improves with every trade.</span></div>
+    </div>
+  </section>
+
+  <!-- DATA SOURCES + COMPONENTS -->
+  <section>
+    <h2><span class="num">04</span>Data Sources &amp; Background Workers</h2>
+    <div class="cols">
+      <div class="card">
+        <h3>📊 Data Sources</h3>
+        <table>
+          <tr><th>Source</th><th>Used For</th><th>Cadence</th></tr>
+          <tr><td><b>Alpaca</b></td><td>Prices, OHLCV, technicals</td><td>live / 60s cache</td></tr>
+          <tr><td><b>Benzinga</b></td><td>Market-wide news</td><td>poll 20s</td></tr>
+          <tr><td><b>SEC EDGAR</b></td><td>8-K, Form 4 filings</td><td>poll 60s</td></tr>
+          <tr><td><b>Anthropic</b></td><td>All agent reasoning</td><td>per call</td></tr>
+          <tr><td><b>yfinance</b></td><td>Fundamentals fallback</td><td>on-demand</td></tr>
+        </table>
+      </div>
+      <div class="card">
+        <h3>⚙️ Background Workers</h3>
+        <table>
+          <tr><th>Worker</th><th>Cadence</th><th>Job</th></tr>
+          <tr><td><b>Monitor</b></td><td>60s</td><td>Auto trim/exit positions</td></tr>
+          <tr><td><b>Auto-Scanner</b></td><td>30 min</td><td>Full market scan</td></tr>
+          <tr><td><b>Journal</b></td><td>on close</td><td>Post-mortem → learnings</td></tr>
+          <tr><td><b>Benzinga feed</b></td><td>20s</td><td>News → bus</td></tr>
+          <tr><td><b>EDGAR feed</b></td><td>60s</td><td>Filings → bus</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- MODES -->
+  <section>
+    <h2><span class="num">05</span>Safety Ladder (Operating Modes)</h2>
+    <div class="modes">
+      <div class="mode"><div class="mname">SHADOW</div><div class="mdesc">Agents run + log, no trades created. For testing.</div></div>
+      <div class="mode active"><div class="mname">SUGGEST ★</div><div class="mdesc">Agents create pending trades. You approve each. (default)</div></div>
+      <div class="mode locked"><div class="mname">AUTO_PAPER</div><div class="mdesc">Auto-execute vs Alpaca paper. Wired, not enabled.</div></div>
+      <div class="mode locked"><div class="mname">AUTO_LIVE 🔒</div><div class="mdesc">Real broker. Locked — requires explicit unlock.</div></div>
+    </div>
+  </section>
+
+  <!-- DATABASE -->
+  <section>
+    <h2><span class="num">06</span>Database Schema (SQLite · 11 tables)</h2>
+    <div class="cols">
+      <div class="card">
+        <h3>📁 Core</h3>
+        <div class="chips">
+          <span class="chip"><b>positions</b> <span>open/closed trades</span></span>
+          <span class="chip"><b>watchlist</b> <span>tracked tickers</span></span>
+          <span class="chip"><b>analysis_cache</b></span>
+        </div>
+      </div>
+      <div class="card">
+        <h3>🤖 Agent System</h3>
+        <div class="chips">
+          <span class="chip"><b>events</b> <span>bus log</span></span>
+          <span class="chip"><b>agent_runs</b> <span>per-call + cost</span></span>
+          <span class="chip"><b>pending_trades</b></span>
+          <span class="chip"><b>position_checks</b></span>
+          <span class="chip"><b>position_meta</b></span>
+          <span class="chip"><b>trade_journal</b></span>
+          <span class="chip"><b>learnings</b></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TECH STACK -->
+  <section>
+    <h2><span class="num">07</span>Tech Stack</h2>
+    <div class="tech-grid">
+      <div class="tech"><span class="k">Desktop shell</span><span class="v">Electron 42</span></div>
+      <div class="tech"><span class="k">Frontend</span><span class="v">React 18 + Vite 5</span></div>
+      <div class="tech"><span class="k">Charts</span><span class="v">TradingView Lightweight</span></div>
+      <div class="tech"><span class="k">Backend</span><span class="v">FastAPI + Uvicorn</span></div>
+      <div class="tech"><span class="k">AI — fast</span><span class="v">Claude Haiku 4.5</span></div>
+      <div class="tech"><span class="k">AI — reasoning</span><span class="v">Claude Sonnet 4.6</span></div>
+      <div class="tech"><span class="k">Market data</span><span class="v">alpaca-py</span></div>
+      <div class="tech"><span class="k">Storage</span><span class="v">SQLite</span></div>
+      <div class="tech"><span class="k">Real-time</span><span class="v">SSE (3 streams)</span></div>
+      <div class="tech"><span class="k">Packaging</span><span class="v">electron-builder → .dmg</span></div>
+    </div>
+  </section>
+
+  <!-- API -->
+  <section>
+    <h2><span class="num">08</span>API Surface (selected)</h2>
+    <div class="card">
+      <table>
+        <tr><th>Method</th><th>Endpoint</th><th>Purpose</th></tr>
+        <tr><td><span class="tag get">GET</span></td><td class="mono">/api/scan/latest</td><td>Latest auto-scan setups</td></tr>
+        <tr><td><span class="tag sse">SSE</span></td><td class="mono">/api/agents/stream</td><td>Live pipeline events</td></tr>
+        <tr><td><span class="tag get">GET</span></td><td class="mono">/api/agents/pending-trades</td><td>Trades awaiting approval</td></tr>
+        <tr><td><span class="tag post">POST</span></td><td class="mono">/api/agents/pending-trades/{id}/decision</td><td>Approve / reject</td></tr>
+        <tr><td><span class="tag get">GET</span></td><td class="mono">/api/agents/monitor/checks</td><td>Position monitor log</td></tr>
+        <tr><td><span class="tag get">GET</span></td><td class="mono">/api/agents/journal/learnings</td><td>Pattern playbook</td></tr>
+        <tr><td><span class="tag sse">SSE</span></td><td class="mono">/api/edgar/stream</td><td>Live SEC filings</td></tr>
+        <tr><td><span class="tag get">GET</span></td><td class="mono">/api/edgar/summarize</td><td>AI filing summary</td></tr>
+        <tr><td><span class="tag post">POST</span></td><td class="mono">/api/agents/mode</td><td>Switch safety mode</td></tr>
+      </table>
+    </div>
+  </section>
+
+  <footer>
+    TradeDesk v1.0 &nbsp;·&nbsp; Phases 1–4 complete &nbsp;·&nbsp; SUGGEST mode &nbsp;·&nbsp;
+    Generated from live codebase
+  </footer>
+
+</div>
+</body>
+</html>
