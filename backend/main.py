@@ -1379,9 +1379,17 @@ async def health():
         pass
     # Quick broker reachability (cheap, timeout-bounded)
     broker_ok = False
+    broker_name = "alpaca"
+    broker_env = "paper"
+    webull_live = False
     try:
         import broker
         broker_ok = broker.is_available()
+        broker_name = broker.active_broker_name()
+        broker_env = broker.broker_env()
+        webull_live = (broker_name == "webull"
+                       and _os.environ.get("WEBULL_LIVE_TRADING", "").strip().lower()
+                       in ("1", "true", "yes", "on"))
     except Exception:
         pass
     return {
@@ -1390,6 +1398,9 @@ async def health():
         "heartbeat_age_sec": hb_age,
         "mode": agent_orchestrator.get_mode(),
         "broker_available": broker_ok,
+        "broker": broker_name,
+        "broker_env": broker_env,
+        "webull_live_trading": webull_live,
         "ts": _t.time(),
     }
 

@@ -29,3 +29,6 @@ dist-electron/
 .DS_Store
 *.swp
 VERSION
+
+# WeBull OpenAPI cached access token (secret)
+backend/conf/
