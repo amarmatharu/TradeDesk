@@ -88,5 +88,34 @@ backtests + reconciliation + promotion gate) that took our best idea and told us
    alt-data) — high failure rate, but failing now costs nothing.
 3. Trade tiny as paid education, EV ≈ SPY-at-best, sized so loss is irrelevant.
 
+---
+
+## Part 4 — Full experiment log (the honest scoreboard)
+
+Every idea was tested with the same discipline: net of costs, out-of-sample / cross-checked,
+Deflated Sharpe, and we believed the harness whatever it said.
+
+| # | Experiment | Module | Result |
+|---|---|---|---|
+| 1 | Insider clusters (broad) | `backtest_portfolio.py` | 🟡 marginal; profit from one lucky quarter; +1.9% vs SPY but beats SPY <50% |
+| 1b | Insider clusters (officer/small-cap/≥3, fresh 2024) | `backtest_refined.py` | ❌ +0.11% vs SPY, beats SPY 47% — just bull-market beta |
+| 2 | Market-neutral factors (momentum/reversal/low-vol) | `factor_lab.py` | ❌ momentum weak+outlier-driven; reversal/low-vol negative; DSR 0 |
+| 3 | Trend-following ETF basket | `trend_follow.py` | ❌ standalone (Sharpe 0.14); real 2022 crisis-alpha but a diversifier, not an edge |
+| 4 | Overnight vs intraday anomaly | `overnight.py` | ⚠ REAL at index level (SPY overnight Sharpe 1.0) but untradeable — daily round trip, dead >1bps |
+| 5 | Turn-of-month / calendar | `calendar_effects.py` | 🟡 SPY TOM Sharpe 1.37, but SPY-only; naive timing loses to buy&hold |
+| 5b | TOM stress test | `tom_stress.py` | ❌ in-sample luck: DSR 0; VOO/IVV (same index) show no effect; levered 0.58 < B&H 1.02 |
+
+**Conclusion after 6 rigorous experiments: no durable, cost-surviving, out-of-sample tradeable
+edge found.** The recurring killers were exactly what the research predicted — transaction costs,
+crowding, and market-beta masquerading as alpha. Every "flicker" (insider Q4, momentum 2026, SPY
+TOM) collapsed under out-of-sample / twin-asset / cost scrutiny. This is the normal base rate;
+the *process* (finding this out for free) is the win.
+
+Easily-testable-with-daily-bars ideas are largely exhausted. Remaining frontiers (options/vol,
+intraday microstructure, event-driven with earnings/flow data, genuine alt-data) require data we
+don't currently have cheap access to — a data problem, not a code problem.
+
+---
+
 Ties to [[PRO_GRADE_ROADMAP.md]] and project memory `strategy-expectancy-state`. WeBull real-
 money broker stays hard-gated OFF; the promotion gate (`can_go_live()`) correctly returns FALSE.
