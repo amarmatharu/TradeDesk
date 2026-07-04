@@ -1351,6 +1351,36 @@ async def broker_positions():
     import broker
     return {"positions": broker.get_positions()}
 
+# ─── Phase 0: metrics, reconciliation, validation ─────────────────────────────
+
+@app.get("/api/metrics")
+async def performance_metrics():
+    """Honest performance metrics over all closed trades (expectancy, Sharpe,
+    Deflated Sharpe, max drawdown, per-pattern/strategy breakdown)."""
+    import metrics
+    try:
+        return metrics.compute_metrics()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/recon")
+async def reconciliation_check():
+    """Diff the internal ledger against the active broker account."""
+    import reconciliation
+    try:
+        return reconciliation.reconcile()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+@app.get("/api/validation")
+async def validation_report():
+    """Pipeline edge + confidence calibration + snapshot count (Phase 0 harness)."""
+    import replay
+    try:
+        return replay.validation_report()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.

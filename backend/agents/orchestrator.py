@@ -20,6 +20,10 @@ _mode = "SUGGEST"
 # "Min R:R 2:1" line in the Research prompt is advisory only — this enforces it.
 MIN_REWARD_RISK = 2.5
 
+# Prompt/model version tag — stamped on decision snapshots so A/B of prompt
+# changes is possible via the replay harness. Bump when prompts change.
+PROMPT_VERSION = "2026.07-debate"
+
 
 def get_mode() -> str:
     return _mode
@@ -184,6 +188,13 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
             )
 
     pipeline_result["duration_ms"] = int((time.time() - pipeline_start) * 1000)
+
+    # Phase 0: freeze a point-in-time snapshot of this decision (replay/validation).
+    try:
+        import snapshots
+        snapshots.capture(event, pipeline_result, prompt_version=PROMPT_VERSION)
+    except Exception:
+        pass
     return pipeline_result
 
 
