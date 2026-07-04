@@ -1408,6 +1408,24 @@ async def memory_similar(ticker: str = "", direction: str = "", thesis: str = ""
     except Exception as e:
         return {"error": str(e)[:200]}
 
+@app.get("/api/tca")
+async def tca_report():
+    """Post-trade execution quality (realized slippage vs decision price)."""
+    import tca
+    try:
+        return tca.report()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/tca/estimate")
+async def tca_estimate(ticker: str, shares: float, price: float):
+    """Pre-trade round-trip cost estimate (spread + market impact) in bps."""
+    import tca
+    try:
+        return tca.estimate_cost(ticker.upper(), shares, price)
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.

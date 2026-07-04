@@ -195,6 +195,20 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
             )
             pipeline_result["paper_execution"] = exec_result
             pipeline_result["strategy"] = strat
+
+            # Phase 3: record realized slippage (decision price vs actual fill).
+            try:
+                import tca
+                fill = (exec_result or {}).get("fill_price") or (exec_result or {}).get("entry")
+                if fill and entry:
+                    tca.record_fill(
+                        position_id=(exec_result or {}).get("position_id"),
+                        ticker=ticker,
+                        side="BUY" if research_out.get("direction") == "LONG" else "SELL",
+                        decision_price=entry, fill_price=fill, shares=shares,
+                    )
+            except Exception:
+                pass
         else:
             # SUGGEST mode — create pending trade for user approval
             trade_id = create_pending_trade(event, scout_out, research_out, risk_out, trader_out)
