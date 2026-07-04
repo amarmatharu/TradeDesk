@@ -94,7 +94,7 @@ Sequenced by "what must be true before the next thing is worth doing."
 - [x] **Reconciliation service** — `reconciliation.py`, `/api/recon`. (Already caught real ledger↔broker drift.)
 - [x] **Point-in-time data capture** — `snapshots.py`; every pipeline decision frozen with a PROMPT_VERSION tag. *(v1 = decision inputs; full market-state snapshotting is a later extension.)*
 - [x] **Pipeline replay & validation harness** — `replay.py`, `/api/validation`: pipeline realized edge + confidence calibration.
-- [x] **Metrics that matter** — `metrics.py`, `/api/metrics`: expectancy, Sharpe/Sortino, max DD, **Deflated Sharpe**, per-pattern/strategy breakdown, with small-sample caveat. *(TODO: dashboard UI.)*
+- [x] **Metrics that matter** — `metrics.py`, `/api/metrics`: expectancy, Sharpe/Sortino, max DD, **Deflated Sharpe**, per-pattern/strategy breakdown, with small-sample caveat. **Dashboard: the "Health" tab (`SystemHealth.jsx`) surfaces all of this + regime/recon/promotion, auto-refresh 30s.**
 
 ### Phase 1 — Decision quality ✅ v1 shipped (`16551f3`)
 - [x] **Bull/bear Researcher debate** — `agents/debate.py`; both cases injected into the Trader.
@@ -106,7 +106,7 @@ Sequenced by "what must be true before the next thing is worth doing."
 - [x] **Systematic factor layer** — `signals.py`, `/api/signals/{ticker}`: momentum/trend/mean-reversion/RSI composite. *(TODO: learned combination weights; insider-cluster factor.)*
 
 ### Phase 3 — Execution & ops ✅ v1 shipped (`201391d`)
-- [x] **TCA** — `tca.py`, `/api/tca` + `/api/tca/estimate`: pre-trade cost estimate (spread + sqrt-impact) and post-trade implementation shortfall. *(TODO: actual VWAP/TWAP order routing.)*
+- [x] **TCA** — `tca.py`, `/api/tca` + `/api/tca/estimate`: pre-trade cost estimate (spread + sqrt-impact) and post-trade implementation shortfall. **The R:R gate now subtracts estimated round-trip cost, so the 2.5:1 threshold is net-of-costs.** *(TODO: actual VWAP/TWAP order routing.)*
 - [x] **Prompt/model versioning** — stamped on decision snapshots (Phase 0). *(TODO: observability dashboard.)*
 
 ### Phase 4 — Robustness & scale ✅ v1 shipped (`c78f8c8`)
