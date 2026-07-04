@@ -1390,6 +1390,24 @@ async def portfolio_risk():
     except Exception as e:
         return {"error": str(e)[:200]}
 
+@app.get("/api/signals/{ticker}")
+async def factor_signals(ticker: str):
+    """Systematic factor signals (momentum/trend/mean-reversion/RSI) + composite."""
+    import signals
+    try:
+        return signals.compute(ticker.upper())
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/memory/similar")
+async def memory_similar(ticker: str = "", direction: str = "", thesis: str = ""):
+    """Retrieve the most analogous past trades to a candidate setup."""
+    import memory
+    try:
+        return memory.recall_similar(ticker.upper(), direction.upper(), thesis)
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.

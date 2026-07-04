@@ -103,8 +103,21 @@ Urgency: {scout_output.get('urgency')}
 
     playbook_block = f"\n\nSYSTEM LEARNINGS — treat HARD AVOID items as rules, not hints:\n{playbook}\n" if playbook else ""
 
+    # Phase 2: analogical recall — how did the most similar past setups resolve?
+    memory_block = ""
+    try:
+        import memory
+        mem = memory.format_for_prompt(
+            primary_ticker, scout_output.get("direction"),
+            event.get("title", ""), scout_output.get("tickers"),
+        )
+        if mem:
+            memory_block = f"\n\n{mem}\n"
+    except Exception:
+        pass
+
     prompt = f"""You are a Research Agent. Build a complete trade plan from this event + market data.
-{playbook_block}
+{playbook_block}{memory_block}
 {event_context}
 
 {market_data}
