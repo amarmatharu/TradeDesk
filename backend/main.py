@@ -1381,6 +1381,15 @@ async def validation_report():
     except Exception as e:
         return {"error": str(e)[:200]}
 
+@app.get("/api/risk/portfolio")
+async def portfolio_risk():
+    """Quantitative portfolio risk — correlation matrix, beta, VaR, concentration."""
+    import risk_model
+    try:
+        return risk_model.portfolio_risk()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.

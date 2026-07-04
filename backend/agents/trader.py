@@ -12,8 +12,27 @@ from database import get_connection
 MODEL = "claude-sonnet-4-6"   # Could upgrade to opus for higher conviction trades
 
 
+def _debate_block(debate_output: dict) -> str:
+    """Render the bull/bear debate for the Trader to weigh. Empty if no debate."""
+    if not debate_output or not debate_output.get("available"):
+        return ""
+    bull = debate_output.get("bull", {})
+    bear = debate_output.get("bear", {})
+    def pts(x):
+        return " | ".join(x.get("strongest_points", [])[:5]) or "—"
+    return f"""
+RESEARCHER DEBATE (weigh both sides — do not just defer to the bull):
+- BULL (conviction {bull.get('conviction')}/10): {pts(bull)}
+    bull's own stated risk: {bull.get('key_risk_to_my_side','')}
+- BEAR (conviction {bear.get('conviction')}/10): {pts(bear)}
+    bear's own stated risk: {bear.get('key_risk_to_my_side','')}
+- Net: {debate_output.get('verdict')} (net conviction {debate_output.get('net_conviction')})
+If the debate is contested or bear-leaning, prefer WAIT/PASS or reduce size.
+"""
+
+
 async def trade_decision(event: dict, scout_output: dict, research_output: dict,
-                         risk_output: dict) -> dict:
+                         risk_output: dict, debate_output: dict = None) -> dict:
     """
     Final decision: BUY | WAIT | PASS
     Returns:
@@ -74,7 +93,7 @@ RISK CHECK:
 - Risk score: {risk_output.get('risk_score')}/10
 - Warnings: {risk_output.get('warnings', [])}
 - Suggested adjustments: {risk_output.get('adjustments', {})}
-
+{_debate_block(debate_output)}
 Decide:
 - BUY: All signals aligned, confidence high, execute now
 - WAIT: Good setup but not optimal timing/price — wait for better entry

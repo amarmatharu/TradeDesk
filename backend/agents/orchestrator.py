@@ -134,9 +134,18 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
         pipeline_result["filter_reason"] = risk_out.get("reason")
         return pipeline_result
 
+    # ─── Stage 3b: Researcher debate (bull vs bear) ──────────────
+    debate_out = None
+    try:
+        from agents.debate import debate
+        debate_out = await debate(event, research_out)
+        pipeline_result["stages"]["debate"] = debate_out
+    except Exception as e:
+        pipeline_result["stages"]["debate"] = {"available": False, "error": str(e)[:120]}
+
     # ─── Stage 4: Trader ─────────────────────────────────────────
     try:
-        trader_out = await trade_decision(event, scout_out, research_out, risk_out)
+        trader_out = await trade_decision(event, scout_out, research_out, risk_out, debate_out)
         pipeline_result["stages"]["trader"] = trader_out
     except Exception as e:
         pipeline_result["error"] = f"Trader error: {e}"
@@ -154,6 +163,22 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
         shares = trader_out.get("final_shares") or research_out.get("shares")
         confidence = trader_out.get("confidence", 0)
         thesis = research_out.get("thesis", "")
+
+        # Phase 1: portfolio construction — override raw shares with a
+        # correlation-aware, edge-weighted (fractional-Kelly) size.
+        try:
+            import portfolio_construction as pc
+            sized = pc.suggest_size(ticker, entry, stop, portfolio_size,
+                                    pattern_tags=research_out.get("pattern_tags") or [])
+            pipeline_result["sizing"] = sized
+            if sized.get("blocked"):
+                pipeline_result["final_action"] = "SIZING_BLOCKED"
+                pipeline_result["filter_reason"] = sized.get("reason")
+                return pipeline_result
+            if sized.get("shares"):
+                shares = sized["shares"]
+        except Exception as e:
+            pipeline_result["sizing_error"] = str(e)[:120]
 
         # Which strategy does this trade belong to?
         import strategies
