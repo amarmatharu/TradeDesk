@@ -15,6 +15,11 @@ from event_bus import publish
 MODES = ["SHADOW", "SUGGEST", "AUTO_PAPER", "AUTO_LIVE"]
 _mode = "SUGGEST"
 
+# Structural reward:risk gate. At the strategy's ~30% win rate, only high-R:R
+# trades have positive expectancy, so reject anything below this at T1. The
+# "Min R:R 2:1" line in the Research prompt is advisory only — this enforces it.
+MIN_REWARD_RISK = 2.5
+
 
 def get_mode() -> str:
     return _mode
@@ -24,6 +29,22 @@ def set_mode(mode: str):
     global _mode
     if mode in MODES:
         _mode = mode
+
+
+def _compute_reward_risk(entry, stop, target, direction):
+    """Real reward:risk from the actual prices (not the model's self-reported
+    `risk_reward`). Returns None if inputs are unusable or the geometry is wrong
+    (stop on the wrong side, target not beyond entry)."""
+    try:
+        entry = float(entry); stop = float(stop); target = float(target)
+    except (TypeError, ValueError):
+        return None
+    # Both legs must be on the correct side of entry, else the plan is invalid.
+    risk = (entry - stop) if direction == "LONG" else (stop - entry)
+    reward = (target - entry) if direction == "LONG" else (entry - target)
+    if risk <= 0 or reward <= 0:
+        return None
+    return round(reward / risk, 2)
 
 
 # ─── Pipeline ─────────────────────────────────────────────────────────────────
@@ -72,6 +93,28 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
     if research_out.get("direction") == "NO_TRADE" or research_out.get("confidence", 0) < 5:
         pipeline_result["final_action"] = "RESEARCH_DECLINED"
         pipeline_result["filter_reason"] = "Research declined or low confidence"
+        return pipeline_result
+
+    # ─── Stage 2b: Structural reward:risk gate ───────────────────
+    rr = _compute_reward_risk(
+        research_out.get("entry"), research_out.get("stop"),
+        research_out.get("target1"), research_out.get("direction"),
+    )
+    research_out["rr_computed"] = rr
+    if rr is None or rr < MIN_REWARD_RISK:
+        pipeline_result["final_action"] = "RR_REJECTED"
+        pipeline_result["filter_reason"] = (
+            f"R:R {rr} < {MIN_REWARD_RISK} required "
+            f"(entry={research_out.get('entry')} stop={research_out.get('stop')} "
+            f"T1={research_out.get('target1')})"
+        )
+        await publish(
+            source="agent",
+            type="pipeline_complete",
+            data={"pipeline": pipeline_result},
+            title=f"R:R too low ({rr}): {research_out.get('ticker','')}",
+            impact="LOW",
+        )
         return pipeline_result
 
     # ─── Stage 3: Risk ───────────────────────────────────────────

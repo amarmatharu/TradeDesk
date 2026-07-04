@@ -376,17 +376,25 @@ def get_playbook(limit: int = 10) -> dict:
 
 
 def format_playbook_for_prompt() -> str:
-    """Returns a short string injectable into Scout/Research prompts."""
+    """Returns a short string injectable into Scout/Research prompts.
+
+    Avoid-patterns are framed as HARD RULES (not soft bias): patterns that have
+    lost money over a real sample must be treated as NO_TRADE unless the evidence
+    is exceptional and clearly differentiated from the past failures."""
     pb = get_playbook(limit=5)
     lines = []
     if pb["favor"]:
-        lines.append("PATTERNS THAT HAVE WORKED FOR US:")
+        lines.append("PATTERNS THAT HAVE WORKED FOR US (favor, all else equal):")
         for p in pb["favor"]:
             lines.append(f"  ✓ {p['pattern']}: win_rate={p['win_rate']}%  avg_R={p['avg_r']}  (n={p['sample_size']})")
     if pb["avoid"]:
-        lines.append("PATTERNS THAT HAVE FAILED FOR US:")
+        lines.append(
+            "HARD AVOID — these setups have repeatedly LOST money. If this "
+            "candidate matches one, return NO_TRADE unless there is exceptional, "
+            "differentiated evidence this time (say explicitly what is different):"
+        )
         for p in pb["avoid"]:
-            lines.append(f"  ✗ {p['pattern']}: win_rate={p['win_rate']}%  avg_R={p['avg_r']}  (n={p['sample_size']})")
+            lines.append(f"  ⛔ {p['pattern']}: win_rate={p['win_rate']}%  avg_R={p['avg_r']}  (n={p['sample_size']}) — DO NOT repeat this mistake")
     if not lines:
         return ""
     return "\n".join(lines)

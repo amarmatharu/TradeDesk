@@ -101,7 +101,7 @@ Urgency: {scout_output.get('urgency')}
     except Exception:
         pass
 
-    playbook_block = f"\n\nSYSTEM LEARNINGS (use to bias confidence):\n{playbook}\n" if playbook else ""
+    playbook_block = f"\n\nSYSTEM LEARNINGS — treat HARD AVOID items as rules, not hints:\n{playbook}\n" if playbook else ""
 
     prompt = f"""You are a Research Agent. Build a complete trade plan from this event + market data.
 {playbook_block}
@@ -112,7 +112,7 @@ Urgency: {scout_output.get('urgency')}
 RISK PARAMETERS:
 - Portfolio: ${portfolio_size:,.0f}
 - Max risk per trade: 1.5% = ${risk_per_trade:.0f}
-- Min R:R required: 2:1
+- Min R:R required: 2.5:1 (ENFORCED in code from entry/stop/target1 — trades below this are auto-rejected, so set targets/stops accordingly)
 - Time horizon: 3-15 day swing trades
 
 Build a complete trade plan. Be specific with prices anchored to the actual current price and technicals.
