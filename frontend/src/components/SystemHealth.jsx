@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation, getMasterPlan } from '../api.js'
+import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation, getMasterPlan, getUpcomingEarnings } from '../api.js'
 
 const GREEN = '#3fb950', RED = '#f85149', AMBER = '#f0a500', DIM = '#8b949e'
 
@@ -16,7 +16,8 @@ export default function SystemHealth() {
       getTacticalAllocation().catch(() => ({})), getVolScaledAllocation().catch(() => ({})),
       getMasterPlan().catch(() => ({})),
     ])
-    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan })
+    const earnings = await getUpcomingEarnings(7).catch(() => ({ mine: [] }))
+    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan, earnings })
     setUpdated(new Date())
     setLoading(false)
   }
@@ -60,6 +61,9 @@ export default function SystemHealth() {
           </div>
         )}
       </div>
+
+      {/* Earnings-soon heads-up for held/watched tickers */}
+      <EarningsAlert earnings={d.earnings} />
 
       {/* THE PLAN — unified core-satellite allocation (flagship) */}
       <MasterPlanCard p={d.plan} />
@@ -146,6 +150,26 @@ export default function SystemHealth() {
           {val.confidence_calibration?.note}
         </div>
       </Section>
+    </div>
+  )
+}
+
+function EarningsAlert({ earnings }) {
+  const soon = ((earnings && earnings.mine) || []).filter(e => e.days_until <= 5)
+  if (soon.length === 0) return null
+  return (
+    <div style={{ background: '#2a2109', border: '1px solid #9e6a03', borderRadius: 8, padding: '10px 14px',
+      display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 13, fontWeight: 800, color: '#f0a500' }}>📅 EARNINGS SOON</span>
+      {soon.map((e, i) => (
+        <span key={i} style={{ fontSize: 12, color: '#e6edf3' }}>
+          <b style={{ color: e.held ? '#3fb950' : '#f0a500' }}>{e.ticker}</b>
+          {' '}{e.days_until === 0 ? 'today' : e.days_until === 1 ? 'tomorrow' : `in ${e.days_until}d`}
+          {' '}({e.date}{e.when ? `, ${e.when}` : ''}){e.held ? ' — you hold this' : ''}
+          {i < soon.length - 1 ? ' ·' : ''}
+        </span>
+      ))}
+      <span style={{ fontSize: 10, color: '#8b949e' }}>— expect a possible overnight gap</span>
     </div>
   )
 }
