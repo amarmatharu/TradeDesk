@@ -1466,6 +1466,17 @@ async def volscaled_allocation():
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
+@app.get("/api/plan")
+async def master_plan():
+    """The unified daily/weekly plan: validated core (vol-scaling + GEM crash
+    protection) + a strictly-capped speculative satellite (agent signals).
+    Recommendation only; places no orders."""
+    import master_allocator
+    try:
+        return master_allocator.current_plan()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation } from '../api.js'
+import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation, getMasterPlan } from '../api.js'
 
 const GREEN = '#3fb950', RED = '#f85149', AMBER = '#f0a500', DIM = '#8b949e'
 
@@ -9,13 +9,14 @@ export default function SystemHealth() {
   const [updated, setUpdated] = useState(null)
 
   const load = async () => {
-    const [metrics, recon, regime, promotion, validation, risk, tactical, volscaled] = await Promise.all([
+    const [metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan] = await Promise.all([
       getMetrics().catch(() => ({})), getRecon().catch(() => ({})),
       getRegime().catch(() => ({})), getPromotion().catch(() => ({})),
       getValidation().catch(() => ({})), getPortfolioRisk().catch(() => ({})),
       getTacticalAllocation().catch(() => ({})), getVolScaledAllocation().catch(() => ({})),
+      getMasterPlan().catch(() => ({})),
     ])
-    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled })
+    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan })
     setUpdated(new Date())
     setLoading(false)
   }
@@ -59,6 +60,9 @@ export default function SystemHealth() {
           </div>
         )}
       </div>
+
+      {/* THE PLAN — unified core-satellite allocation (flagship) */}
+      <MasterPlanCard p={d.plan} />
 
       {/* Volatility-scaled exposure — the champion (best risk-adjusted, most robust) */}
       <VolScaledCard v={d.volscaled} />
@@ -142,6 +146,62 @@ export default function SystemHealth() {
           {val.confidence_calibration?.note}
         </div>
       </Section>
+    </div>
+  )
+}
+
+function MasterPlanCard({ p }) {
+  if (!p || !p.ok) return null
+  const on = p.regime === 'RISK_ON'
+  const alloc = Object.entries(p.core_allocation || {})
+  const sat = p.satellite || {}
+  const colors = ['#238636', '#1f6feb', '#8957e5', '#9e6a03']
+  return (
+    <div style={{ ...tc.section, borderColor: '#d29922', background: '#12100a' }}>
+      <div style={tc.header}>
+        <span style={{ ...tc.title, color: '#f0c040', fontSize: 13 }}>◆ THE PLAN — unified allocation</span>
+        <span style={{ ...tc.regime, background: on ? '#132a17' : '#2a2109', color: on ? '#3fb950' : '#f0a500', fontSize: 11 }}>
+          {on ? '▲ RISK-ON' : '▼ DEFENSIVE'}
+        </span>
+      </div>
+
+      {/* core allocation bar */}
+      <div>
+        <div style={{ fontSize: 10, color: '#8b949e', fontWeight: 700, marginBottom: 4 }}>
+          CORE (validated) — rebalance weekly
+        </div>
+        <div style={{ display: 'flex', height: 26, borderRadius: 5, overflow: 'hidden', border: '1px solid #30363d' }}>
+          {alloc.map(([k, v], i) => (
+            <div key={k} title={`${k} ${v}%`} style={{ width: `${v}%`, background: colors[i % colors.length],
+              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff', fontWeight: 700 }}>
+              {v >= 8 ? `${k.split(' ')[0]} ${v}%` : ''}
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>
+          {alloc.map(([k, v]) => `${k} ${v}%`).join(' · ')}
+        </div>
+      </div>
+      <div style={tc.reason}>{p.core_reasoning}</div>
+
+      {/* satellite */}
+      <div style={{ borderTop: '1px solid #21262d', paddingTop: 8 }}>
+        <div style={{ fontSize: 10, color: '#8b949e', fontWeight: 700 }}>
+          SATELLITE (speculative, capped {sat.budget_pct}%) — using {sat.used_pct}%
+        </div>
+        {(sat.active_signals || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: '#8b949e', marginTop: 3 }}>No high-conviction agent signals right now.</div>
+        ) : (
+          sat.active_signals.map((s, i) => (
+            <div key={i} style={{ fontSize: 12, color: '#c9d1d9', marginTop: 3 }}>
+              <b style={{ color: s.direction === 'LONG' ? '#3fb950' : '#f85149' }}>{s.direction} {s.ticker}</b>
+              {' '}@ ${s.entry} · conf {s.confidence}/10 · size {s.size_pct}% — {s.thesis}
+            </div>
+          ))
+        )}
+        <div style={{ fontSize: 10, color: '#9e6a03', marginTop: 4 }}>⚠ {sat.note}</div>
+      </div>
+      <div style={tc.sigs}>{p.note}</div>
     </div>
   )
 }
