@@ -9,11 +9,12 @@ import AlertPanel from './components/AlertPanel.jsx'
 import ScannerPanel from './components/ScannerPanel.jsx'
 import EdgarPanel from './components/EdgarPanel.jsx'
 import AgentsPanel from './components/AgentsPanel.jsx'
+import SystemHealth from './components/SystemHealth.jsx'
 import TradeModal from './components/TradeModal.jsx'
 import Settings from './components/Settings.jsx'
 import { getMarketOverview, getWatchlist, getPortfolio } from './api.js'
 
-const TABS = ['Chart', 'Analysis', 'News', 'Portfolio', 'Scanner', 'SEC', 'Agents']
+const TABS = ['Chart', 'Analysis', 'News', 'Portfolio', 'Scanner', 'SEC', 'Agents', 'Health']
 
 export default function App() {
   const [activeTicker, setActiveTicker] = useState('NVDA')
@@ -153,6 +154,11 @@ export default function App() {
                 <AgentsPanel onSelectTicker={handleSelectTicker} />
               </div>
             )}
+            {activeTab === 'Health' && (
+              <div style={S.alertsFull}>
+                <SystemHealth />
+              </div>
+            )}
             {activeTab === 'Alerts' && (
               <div style={S.alertsFull}>
                 <AlertPanel onSelectTicker={handleAlertTicker} onFeedStatus={setFeedActive} onNewAlert={handleNewAlert} />
@@ -160,7 +166,7 @@ export default function App() {
             )}
 
             {/* Standard tabs: main content + alert sidebar */}
-            {activeTab !== 'Scanner' && activeTab !== 'Alerts' && (
+            {!['Scanner', 'Alerts', 'SEC', 'Agents', 'Health'].includes(activeTab) && (
               <>
                 <div style={S.content}>
                   {activeTab === 'Chart'     && <ChartPanel ticker={activeTicker} />}
