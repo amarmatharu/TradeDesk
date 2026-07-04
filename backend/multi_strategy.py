@@ -134,16 +134,27 @@ def run():
 
     print(f"  sleeve correlation A(tactical) vs B(trend): {corr:+.2f}  "
           f"(low/negative = good diversification)\n")
-    print(f"  {'strategy':22} {'CAGR%':>7} {'vol%':>6} {'Sharpe':>7} {'maxDD%':>8}")
     rows = [stats(A, "A: Tactical equity"), stats(B, "B: Managed-futures trend"),
             stats(blend, f"BLEND ({wa:.0%}A/{wb:.0%}B)"), stats(spy, "SPY buy&hold"),
             stats(p6040, "60/40")]
+
+    # Levered blend: dial the low-vol high-Sharpe engine up to a target vol,
+    # net of a realistic borrow cost on the leveraged portion.
+    TARGET_VOL = 0.12
+    borrow = 0.04 / 252
+    realized = float(np.std(blend)) * np.sqrt(252)
+    lev = min(TARGET_VOL / realized, 2.5) if realized else 1.0
+    lev_blend = lev * blend - max(0.0, lev - 1) * borrow
+    rows.insert(3, stats(lev_blend, f"BLEND × {lev:.1f} (12% vol)"))
+
+    print(f"  {'strategy':22} {'CAGR%':>7} {'vol%':>6} {'Sharpe':>7} {'maxDD%':>8}")
     for x in rows:
         print(f"  {x['label']:22} {x['cagr']:>7} {x['vol']:>6} {x['sharpe']:>7} {x['mdd']:>8}")
 
     print(f"\n  BEAR MARKETS (return during drawdown):")
     print(f"  {'strategy':22} " + " ".join(f"{b[0]:>8}" for b in BEARS))
-    for series, lbl in [(A, "A: Tactical"), (B, "B: Trend"), (blend, "BLEND"), (spy, "SPY")]:
+    for series, lbl in [(A, "A: Tactical"), (B, "B: Trend"), (blend, "BLEND"),
+                        (lev_blend, f"BLEND ×{lev:.1f}"), (spy, "SPY")]:
         print(f"  {lbl:22} " + " ".join(f"{str(bear(dates[start:], series, b[1], b[2])):>8}" for b in BEARS))
 
     sh_blend = stats(blend, "b")["sharpe"]
