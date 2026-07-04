@@ -933,6 +933,16 @@ async def earnings_calendar(days: int = 14):
 async def earnings_watchlist(days: int = 14):
     return await earnings_calendar(days)
 
+@app.get("/api/earnings/upcoming")
+async def earnings_upcoming(days: int = 14):
+    """Upcoming earnings calendar (Alpha Vantage + Benzinga), with your
+    watchlist/holdings flagged and surfaced first."""
+    import earnings
+    try:
+        return earnings.get_upcoming(days)
+    except Exception as e:
+        return {"error": str(e)[:200], "mine": [], "all": []}
+
 
 @app.get("/api/earnings/history/{ticker}")
 async def earnings_history(ticker: str):
