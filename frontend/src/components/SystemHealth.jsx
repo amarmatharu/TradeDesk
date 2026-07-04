@@ -165,6 +165,14 @@ function MasterPlanCard({ p }) {
         </span>
       </div>
 
+      {/* the one line that tells you the trade, in real tickers */}
+      {p.action && (
+        <div style={{ background: '#1c2a12', border: '1px solid #2ea043', borderRadius: 8,
+          padding: '10px 14px', fontSize: 15, fontWeight: 800, color: '#7ee787' }}>
+          {p.action}
+        </div>
+      )}
+
       {/* core allocation bar */}
       <div>
         <div style={{ fontSize: 10, color: '#8b949e', fontWeight: 700, marginBottom: 4 }}>

@@ -104,6 +104,12 @@ def current_plan() -> dict:
                        f"Volatility {ann_vol}% in the {round((vol_pct or 0)*100)}th percentile → "
                        f"size equity to {eq_pct}% of capital, {bond_pct}% bonds.")
 
+    # Plain-language action line using the real, buyable ETF tickers.
+    TICKER_MAP = {"SPY": "VOO", "EFA": "IEFA", "AGG (bonds)": "BND"}
+    action = "➜ This week: hold " + ", ".join(
+        f"{pct:g}% {TICKER_MAP.get(asset, asset)}" for asset, pct in core.items() if pct > 0
+    ) + "."
+
     satellite = {
         "budget_pct": SATELLITE_MAX_PCT,
         "used_pct": round(sat_used, 1),
@@ -119,6 +125,7 @@ def current_plan() -> dict:
 
     return {
         "ok": True,
+        "action": action,
         "regime": regime,
         "core_allocation": core,
         "core_reasoning": core_reason,
