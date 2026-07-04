@@ -32,6 +32,7 @@ export const getRegime = () => api.get('/api/regime').then(r => r.data)
 export const getPromotion = () => api.get('/api/promotion').then(r => r.data)
 export const getValidation = () => api.get('/api/validation').then(r => r.data)
 export const getPortfolioRisk = () => api.get('/api/risk/portfolio').then(r => r.data)
+export const getTacticalAllocation = () => api.get('/api/tactical/allocation').then(r => r.data)
 
 export const getWatchlist = () => api.get('/api/watchlist').then(r => r.data)
 export const addToWatchlist = (ticker) => api.post('/api/watchlist', { ticker }).then(r => r.data)

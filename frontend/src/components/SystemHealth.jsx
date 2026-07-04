@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk } from '../api.js'
+import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation } from '../api.js'
 
 const GREEN = '#3fb950', RED = '#f85149', AMBER = '#f0a500', DIM = '#8b949e'
 
@@ -9,12 +9,13 @@ export default function SystemHealth() {
   const [updated, setUpdated] = useState(null)
 
   const load = async () => {
-    const [metrics, recon, regime, promotion, validation, risk] = await Promise.all([
+    const [metrics, recon, regime, promotion, validation, risk, tactical] = await Promise.all([
       getMetrics().catch(() => ({})), getRecon().catch(() => ({})),
       getRegime().catch(() => ({})), getPromotion().catch(() => ({})),
       getValidation().catch(() => ({})), getPortfolioRisk().catch(() => ({})),
+      getTacticalAllocation().catch(() => ({})),
     ])
-    setD({ metrics, recon, regime, promotion, validation, risk })
+    setD({ metrics, recon, regime, promotion, validation, risk, tactical })
     setUpdated(new Date())
     setLoading(false)
   }
@@ -58,6 +59,9 @@ export default function SystemHealth() {
           </div>
         )}
       </div>
+
+      {/* Tactical allocation — the one strategy that cleared out-of-sample testing */}
+      <TacticalCard t={d.tactical} money={money} />
 
       {/* Performance metrics */}
       <Section title="PERFORMANCE (closed trades)">
@@ -139,6 +143,33 @@ export default function SystemHealth() {
   )
 }
 
+function TacticalCard({ t, money }) {
+  if (!t || !t.ok) return null
+  const on = t.regime === 'RISK_ON'
+  const alloc = Object.entries(t.allocation || {}).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(' + ')
+  const sig = t.signals || {}
+  return (
+    <div style={{ ...tc.section, borderColor: on ? '#238636' : '#9e6a03' }}>
+      <div style={tc.header}>
+        <span style={tc.title}>TACTICAL ALLOCATION</span>
+        <span style={tc.proven}>✓ cleared out-of-sample (22y)</span>
+      </div>
+      <div style={tc.row}>
+        <span style={{ ...tc.regime, background: on ? '#132a17' : '#2a2109', color: on ? '#3fb950' : '#f0a500' }}>
+          {on ? '▲ RISK-ON' : '▼ DEFENSIVE'}
+        </span>
+        <span style={tc.alloc}>Hold: <b style={{ color: '#e6edf3' }}>{alloc}</b></span>
+        {on && <span style={tc.exp}>exposure {t.equity_exposure}×</span>}
+      </div>
+      <div style={tc.reason}>{t.reasoning}</div>
+      <div style={tc.sigs}>
+        SPY 12m: <b>{sig.spy_12m_pct}%</b> · EFA 12m: <b>{sig.efa_12m_pct}%</b> ·
+        realized vol: <b>{sig.realized_vol_pct}%</b> / target {sig.target_vol_pct}% · rebalance {t.rebalance}
+      </div>
+    </div>
+  )
+}
+
 function Section({ title, children, grow }) {
   return (
     <div style={grow ? { ...s.section, ...s.grow } : s.section}>
@@ -179,4 +210,17 @@ const s = {
   reconRow: { fontSize: 12, color: '#c9d1d9', marginBottom: 4 },
   twoCol: { display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-start' },
   grow: { flex: 1, minWidth: 300 },
+}
+
+const tc = {
+  section: { background: '#161b22', border: '1px solid #238636', borderRadius: 10, padding: 14, display: 'flex', flexDirection: 'column', gap: 8 },
+  header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 12, fontWeight: 800, color: '#e6edf3', letterSpacing: 1 },
+  proven: { fontSize: 10, fontWeight: 700, color: '#3fb950', border: '1px solid #238636', borderRadius: 6, padding: '2px 8px' },
+  row: { display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' },
+  regime: { fontSize: 13, fontWeight: 800, borderRadius: 6, padding: '4px 10px' },
+  alloc: { fontSize: 13, color: '#8b949e' },
+  exp: { fontSize: 12, color: '#8b949e', border: '1px solid #30363d', borderRadius: 6, padding: '2px 8px' },
+  reason: { fontSize: 12, color: '#c9d1d9', lineHeight: 1.5 },
+  sigs: { fontSize: 11, color: '#8b949e' },
 }

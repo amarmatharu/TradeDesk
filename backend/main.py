@@ -1444,6 +1444,17 @@ async def promotion_gate():
     except Exception as e:
         return {"error": str(e)[:200]}
 
+@app.get("/api/tactical/allocation")
+async def tactical_allocation():
+    """Current target allocation from the tactical strategy (vol-targeted equity
+    with a GEM crash overlay) — the one system that cleared out-of-sample testing.
+    Recommendation only; places no orders."""
+    import tactical_strategy
+    try:
+        return tactical_strategy.current_allocation()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.
