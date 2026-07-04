@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { closeTrade, deleteTrade } from '../api.js'
+import { useState, useEffect } from 'react'
+import { closeTrade, deleteTrade, getWebullHoldings } from '../api.js'
 
 export default function Portfolio({ portfolio, onRefresh }) {
   const [closingId, setClosingId] = useState(null)
   const [exitPrice, setExitPrice] = useState('')
+  const [showAlpaca, setShowAlpaca] = useState(false)
   const { positions = [], summary = {} } = portfolio
 
   const open = positions.filter(p => p.status === 'OPEN')
@@ -27,6 +28,17 @@ export default function Portfolio({ portfolio, onRefresh }) {
 
   return (
     <div style={s.wrap}>
+      {/* WeBull live brokerage holdings (read-only) */}
+      <WebullHoldings />
+
+      {/* Alpaca paper portfolio — collapsed by default */}
+      <button style={s.toggle} onClick={() => setShowAlpaca(v => !v)}>
+        <span style={{ transform: showAlpaca ? 'rotate(90deg)' : 'none', display: 'inline-block', transition: 'transform .15s' }}>▶</span>
+        {showAlpaca ? 'Hide' : 'Show'} Alpaca paper portfolio
+        {summary.open_positions > 0 && <span style={s.togglePill}>{summary.open_positions} open</span>}
+      </button>
+
+      {showAlpaca && (<>
       {/* Summary cards */}
       <div style={s.summaryRow}>
         <SummaryCard label="Portfolio" value={`$${summary.portfolio_size?.toLocaleString()}`} />
@@ -134,6 +146,84 @@ export default function Portfolio({ portfolio, onRefresh }) {
           </table>
         </div>
       )}
+      </>)}
+    </div>
+  )
+}
+
+function WebullHoldings() {
+  const [data, setData] = useState({ available: false, account: {}, positions: [] })
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let alive = true
+    const load = async () => {
+      try { const d = await getWebullHoldings(); if (alive) setData(d) } catch (e) {}
+      if (alive) setLoading(false)
+    }
+    load()
+    const iv = setInterval(load, 30000)
+    return () => { alive = false; clearInterval(iv) }
+  }, [])
+
+  const acct = data.account || {}
+  const positions = data.positions || []
+  const totMV = positions.reduce((a, p) => a + (p.market_value || 0), 0)
+  const totPL = positions.reduce((a, p) => a + (p.unrealized_pl || 0), 0)
+  const money = (v) => `${v < 0 ? '-' : ''}$${Math.abs(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+  return (
+    <div style={wb.section}>
+      <div style={wb.header}>
+        <span style={wb.title}>WEBULL — LIVE ACCOUNT</span>
+        <span style={wb.readonly}>READ-ONLY</span>
+        {loading && <span style={wb.dim}>loading…</span>}
+      </div>
+
+      {!loading && !data.available ? (
+        <div style={s.empty}>
+          WeBull not connected — the access token may need re-approval in the WeBull phone app.
+        </div>
+      ) : (
+        <>
+          <div style={s.summaryRow}>
+            <SummaryCard label="Equity" value={money(acct.equity)} />
+            <SummaryCard label="Cash" value={money(acct.cash)} color={acct.cash < 0 ? '#f0a500' : '#e6edf3'} />
+            <SummaryCard label="Buying Power" value={money(acct.buying_power)} />
+            <SummaryCard label="Open P&L" value={`${totPL >= 0 ? '+' : ''}${money(totPL)}`} color={totPL >= 0 ? '#3fb950' : '#f85149'} />
+            <SummaryCard label="Positions" value={positions.length} />
+          </div>
+
+          {positions.length > 0 && (
+            <table style={{ ...s.table, marginTop: 10 }}>
+              <thead>
+                <tr style={s.thead}>
+                  {['Ticker', 'Side', 'Qty', 'Avg Cost', 'Last', 'Market Value', 'Unrealized P&L'].map(h => (
+                    <th key={h} style={s.th}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {positions.map(p => (
+                  <tr key={p.ticker} style={s.tr}>
+                    <td style={s.td}><strong style={{ color: '#f0a500' }}>{p.ticker}</strong></td>
+                    <td style={s.td}><span style={{ color: p.side === 'LONG' ? '#3fb950' : '#f85149' }}>{p.side}</span></td>
+                    <td style={s.td}>{p.qty}</td>
+                    <td style={s.td}>${p.avg_entry?.toFixed(2)}</td>
+                    <td style={s.td}>${p.current_price?.toFixed(2)}</td>
+                    <td style={s.td}>{money(p.market_value)}</td>
+                    <td style={s.td}>
+                      <span style={{ color: p.unrealized_pl >= 0 ? '#3fb950' : '#f85149', fontWeight: 700 }}>
+                        {p.unrealized_pl >= 0 ? '+' : ''}{money(p.unrealized_pl)} ({p.unrealized_plpc?.toFixed(1)}%)
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -166,4 +256,14 @@ const s = {
   cancelBtn: { background: '#f85149', border: 'none', color: '#fff', borderRadius: 4, padding: '3px 8px', cursor: 'pointer' },
   closeBtn: { background: '#21262d', border: 'none', color: '#e6edf3', borderRadius: 4, padding: '3px 10px', cursor: 'pointer', fontSize: 11 },
   deleteBtn: { background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer', fontSize: 13 },
+  toggle: { display: 'flex', alignItems: 'center', gap: 8, background: '#161b22', border: '1px solid #21262d', borderRadius: 8, padding: '8px 14px', color: '#8b949e', fontSize: 12, fontWeight: 600, cursor: 'pointer', alignSelf: 'flex-start' },
+  togglePill: { fontSize: 10, fontWeight: 700, color: '#c9d1d9', background: '#21262d', borderRadius: 10, padding: '1px 8px', marginLeft: 4 },
+}
+
+const wb = {
+  section: { background: '#161b22', border: '1px solid #f0a50033', borderRadius: 8, padding: 14, display: 'flex', flexDirection: 'column', gap: 10 },
+  header: { display: 'flex', alignItems: 'center', gap: 10 },
+  title: { fontSize: 11, fontWeight: 800, color: '#f0a500', letterSpacing: 1 },
+  readonly: { fontSize: 9, fontWeight: 700, color: '#8b949e', border: '1px solid #30363d', borderRadius: 4, padding: '1px 6px', letterSpacing: 0.5 },
+  dim: { fontSize: 10, color: '#8b949e' },
 }

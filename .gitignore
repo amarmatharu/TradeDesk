@@ -32,3 +32,6 @@ VERSION
 
 # WeBull OpenAPI cached access token (secret)
 backend/conf/
+
+# WeBull SDK debug logs
+backend/webull_trade_sdk.log*

@@ -23,6 +23,8 @@ export const closeTrade = (id, exit_price) =>
   api.put(`/api/portfolio/trade/${id}/close`, { exit_price }).then(r => r.data)
 export const deleteTrade = (id) => api.delete(`/api/portfolio/trade/${id}`).then(r => r.data)
 
+export const getWebullHoldings = () => api.get('/api/broker/webull/holdings').then(r => r.data)
+
 export const getWatchlist = () => api.get('/api/watchlist').then(r => r.data)
 export const addToWatchlist = (ticker) => api.post('/api/watchlist', { ticker }).then(r => r.data)
 export const removeFromWatchlist = (ticker) => api.delete(`/api/watchlist/${ticker}`).then(r => r.data)

@@ -1351,6 +1351,22 @@ async def broker_positions():
     import broker
     return {"positions": broker.get_positions()}
 
+@app.get("/api/broker/webull/holdings")
+async def webull_holdings():
+    """Read-only WeBull account + positions, independent of the active broker.
+    Never places orders — used purely to display WeBull holdings in the UI."""
+    try:
+        from brokers import webull_broker
+        if not webull_broker.is_available():
+            return {"available": False, "account": {}, "positions": []}
+        return {
+            "available": True,
+            "account": webull_broker.get_account(),
+            "positions": webull_broker.get_positions(),
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)[:200], "account": {}, "positions": []}
+
 
 # ─── Strategy A/B comparison ──────────────────────────────────────────────────
 
