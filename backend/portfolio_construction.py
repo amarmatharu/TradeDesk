@@ -136,6 +136,17 @@ def suggest_size(ticker: str, entry: float, stop: float, portfolio_size: float,
         risk_pct *= haircut
         reasons.append(f"Correlation {corr} with book → {haircut:.2f}× (avoid doubling one bet).")
 
+    # 4) Market-regime scaling (cut size in high-vol / bear tapes)
+    try:
+        import regime
+        reg = regime.detect()
+        rmult = reg.get("risk_multiplier", 1.0)
+        if rmult and rmult != 1.0:
+            risk_pct *= rmult
+            reasons.append(f"Regime {reg.get('trend')}/{reg.get('volatility')}-vol → {rmult}× size.")
+    except Exception:
+        pass
+
     risk_pct = min(risk_pct, MAX_RISK_PCT)
     risk_dollars = portfolio_size * risk_pct
     shares = int(risk_dollars / risk_per_share)

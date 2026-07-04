@@ -1426,6 +1426,24 @@ async def tca_estimate(ticker: str, shares: float, price: float):
     except Exception as e:
         return {"error": str(e)[:200]}
 
+@app.get("/api/regime")
+async def market_regime():
+    """Current market regime (trend + volatility) and suggested risk posture."""
+    import regime
+    try:
+        return regime.detect()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/promotion")
+async def promotion_gate():
+    """Live-promotion gate — is the strategy statistically ready for real money?"""
+    import promotion
+    try:
+        return promotion.evaluate()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.

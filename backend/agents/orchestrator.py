@@ -184,6 +184,19 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
         import strategies
         strat = strategies.resolve_strategy(event)
 
+        # Phase 4: live-promotion gate — real money requires a passing grade.
+        if _mode == "AUTO_LIVE":
+            try:
+                import promotion
+                if not promotion.can_go_live():
+                    pipeline_result["final_action"] = "LIVE_BLOCKED_UNPROVEN"
+                    pipeline_result["filter_reason"] = (
+                        "AUTO_LIVE blocked: strategy has not cleared the promotion "
+                        "gate (deflated Sharpe / sample / drawdown). See /api/promotion.")
+                    return pipeline_result
+            except Exception:
+                pass
+
         if _mode in ("AUTO_PAPER", "AUTO_LIVE"):
             # Auto-execute the trade (paper), tagged with its strategy
             from paper_trader import execute_paper_trade
