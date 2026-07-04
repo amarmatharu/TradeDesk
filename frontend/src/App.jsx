@@ -61,7 +61,9 @@ export default function App() {
 
   const handleSelectTicker = (ticker) => {
     setActiveTicker(ticker.toUpperCase())
-    if (activeTab === 'Portfolio' || activeTab === 'News') setActiveTab('Chart')
+    // Jump to the Chart whenever a ticker is picked from any list view where the
+    // chart isn't already visible (Earnings, Scanner, SEC, Portfolio, News, etc.)
+    if (!['Chart', 'Analysis'].includes(activeTab)) setActiveTab('Chart')
   }
 
   const handleAlertTicker = (ticker) => {
