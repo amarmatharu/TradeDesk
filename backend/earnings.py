@@ -20,7 +20,25 @@ from datetime import datetime, timedelta
 
 _CACHE = {"ts": 0, "rows": None}
 _BZ_CACHE = {"ts": 0, "map": {}}
+_TR_CACHE = {}                # ticker -> (ts, record)
 CACHE_TTL = 6 * 3600          # AV: refresh at most every 6h (respect 25/day limit)
+
+# Curated large/mega-cap universe for the "large-cap only" noise filter.
+LARGE_CAP = set("""
+AAPL MSFT NVDA AMZN GOOGL GOOG META TSLA AVGO BRK.B LLY JPM V UNH XOM MA JNJ PG COST HD
+ABBV MRK CVX WMT KO PEP BAC ADBE CRM NFLX AMD TMO ACN LIN MCD ABT ORCL CSCO DIS WFC
+INTC QCOM TXN DHR VZ CMCSA PM NKE INTU AMGN NEE RTX HON UNP LOW SPGI IBM GE CAT BA
+UPS BKNG NOW GS MS AXP BLK C SCHW T PFE BMY GILD CVS MDT ISRG AMAT MU ADI LRCX KLAC
+DE MMM EMR ETN ITW GD LMT NOC SLB EOG COP MPC PSX OXY VLO WMB KMI TGT SBUX CMG BKNG
+PYPL SQ SHOP UBER ABNB PLTR SNOW CRWD PANW NET DDOG ZS MRNA REGN VRTX TMUS CL KHC MDLZ
+MO SO DUK PLD AMT CCI EQIX PSA SPG O DOW DD PPG SHW FCX NEM NUE APD ECL PH ROK PCAR
+F GM PYPL WFC USB PNC TFC COF SYK BDX BSX ZTS HCA CI ELV HUM GEHC IDXX A DXCM
+V MA FIS FISV GPN AON MMC PGR TRV ALL AFL MET PRU CB
+""".split())
+
+
+def is_large_cap(t):
+    return t.upper() in LARGE_CAP
 
 
 def _av_calendar():
@@ -63,6 +81,40 @@ def _benzinga_times(date_from, date_to):
     except Exception:
         pass
     return out
+
+
+def get_track_record(ticker: str) -> dict:
+    """Beat/miss history from Alpha Vantage EARNINGS (last 8 quarters). Cached 24h
+    per ticker — only fetched for YOUR tickers to respect AV's 25/day limit."""
+    tk = ticker.upper()
+    c = _TR_CACHE.get(tk)
+    if c and time.time() - c[0] < 24 * 3600:
+        return c[1]
+    key = os.environ.get("ALPHA_VANTAGE_KEY", "")
+    if not key:
+        return {}
+    rec = {}
+    try:
+        url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={tk}&apikey={key}"
+        d = json.loads(urllib.request.urlopen(url, timeout=30).read().decode())
+        q = d.get("quarterlyEarnings", [])[:8]
+        surprises = []
+        beats = 0
+        for e in q:
+            try:
+                sp = float(e.get("surprisePercentage"))
+                surprises.append(sp)
+                if sp > 0:
+                    beats += 1
+            except (TypeError, ValueError):
+                continue
+        if surprises:
+            rec = {"beats": beats, "of": len(surprises),
+                   "avg_surprise_pct": round(sum(surprises) / len(surprises), 1)}
+    except Exception:
+        rec = _TR_CACHE.get(tk, (0, {}))[1]
+    _TR_CACHE[tk] = (time.time(), rec)
+    return rec
 
 
 def _my_tickers():
@@ -109,10 +161,16 @@ def get_upcoming(days: int = 14) -> dict:
             "fiscal_end": r.get("fiscalDateEnding"),
             "in_watchlist": tk in watch,
             "held": tk in held,
+            "large_cap": is_large_cap(tk),
         })
 
     out.sort(key=lambda x: (x["date"], x["ticker"]))
     mine = [x for x in out if x["in_watchlist"] or x["held"]]
+    # Beat/miss track record only for YOUR tickers (AV rate-limit friendly)
+    for x in mine:
+        tr = get_track_record(x["ticker"])
+        if tr:
+            x["track_record"] = tr
     return {
         "days": days,
         "count": len(out),

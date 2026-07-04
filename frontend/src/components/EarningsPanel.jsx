@@ -4,6 +4,7 @@ import { getUpcomingEarnings } from '../api.js'
 export default function EarningsPanel({ onSelectTicker }) {
   const [data, setData] = useState({ mine: [], all: [] })
   const [days, setDays] = useState(14)
+  const [largeCapOnly, setLargeCapOnly] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const load = (d) => {
@@ -13,7 +14,7 @@ export default function EarningsPanel({ onSelectTicker }) {
   useEffect(() => { load(days) }, [days])
 
   const mine = data.mine || []
-  const all = data.all || []
+  const all = (data.all || []).filter(e => !largeCapOnly || e.large_cap)
 
   return (
     <div style={s.wrap}>
@@ -24,6 +25,8 @@ export default function EarningsPanel({ onSelectTicker }) {
             <button key={d} onClick={() => setDays(d)}
               style={{ ...s.rangeBtn, ...(days === d ? s.rangeActive : {}) }}>{d}d</button>
           ))}
+          <button onClick={() => setLargeCapOnly(v => !v)}
+            style={{ ...s.rangeBtn, ...(largeCapOnly ? s.rangeActive : {}), marginLeft: 6 }}>Large-cap only</button>
           <span style={s.dim}>{data.count != null ? `${data.count} reports · ${data.source || ''}` : ''}</span>
         </div>
       </div>
@@ -56,7 +59,7 @@ function Table({ rows, onSelectTicker, highlight }) {
     <table style={s.table}>
       <thead>
         <tr style={s.thead}>
-          {['When', 'Date', 'Ticker', 'Time', 'EPS est.', 'Company', ''].map(h => <th key={h} style={s.th}>{h}</th>)}
+          {['When', 'Date', 'Ticker', 'Time', 'EPS est.', 'Track record', 'Company'].map(h => <th key={h} style={s.th}>{h}</th>)}
         </tr>
       </thead>
       <tbody>
@@ -75,8 +78,15 @@ function Table({ rows, onSelectTicker, highlight }) {
             </td>
             <td style={s.td}>{e.when ? <span style={{ color: e.when === 'BMO' ? '#f0a500' : '#8957e5' }}>{e.when}</span> : '—'}</td>
             <td style={s.td}>{e.eps_estimate != null && e.eps_estimate !== '' ? `$${e.eps_estimate}` : '—'}</td>
-            <td style={{ ...s.td, color: '#8b949e', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.company}</td>
-            <td style={s.td}></td>
+            <td style={s.td}>
+              {e.track_record ? (
+                <span style={{ color: e.track_record.beats >= e.track_record.of * 0.6 ? '#3fb950' : '#f0a500' }}>
+                  beat {e.track_record.beats}/{e.track_record.of}
+                  <span style={{ color: '#8b949e' }}> · {e.track_record.avg_surprise_pct > 0 ? '+' : ''}{e.track_record.avg_surprise_pct}%</span>
+                </span>
+              ) : '—'}
+            </td>
+            <td style={{ ...s.td, color: '#8b949e', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.company}</td>
           </tr>
         ))}
       </tbody>
