@@ -4,7 +4,7 @@ import { getUpcomingEarnings } from '../api.js'
 export default function EarningsPanel({ onSelectTicker }) {
   const [data, setData] = useState({ mine: [], all: [] })
   const [days, setDays] = useState(14)
-  const [largeCapOnly, setLargeCapOnly] = useState(false)
+  const [largeCapOnly, setLargeCapOnly] = useState(true)   // default to top companies only
   const [loading, setLoading] = useState(true)
 
   const load = (d) => {
@@ -26,8 +26,12 @@ export default function EarningsPanel({ onSelectTicker }) {
               style={{ ...s.rangeBtn, ...(days === d ? s.rangeActive : {}) }}>{d}d</button>
           ))}
           <button onClick={() => setLargeCapOnly(v => !v)}
-            style={{ ...s.rangeBtn, ...(largeCapOnly ? s.rangeActive : {}), marginLeft: 6 }}>Large-cap only</button>
-          <span style={s.dim}>{data.count != null ? `${data.count} reports · ${data.source || ''}` : ''}</span>
+            style={{ ...s.rangeBtn, ...(largeCapOnly ? s.rangeActive : {}), marginLeft: 6 }}>
+            {largeCapOnly ? '★ Top companies' : 'Showing all'}
+          </button>
+          <span style={s.dim}>
+            {data.count != null ? `${all.length} shown · ${data.count} total` : ''}
+          </span>
         </div>
       </div>
 
