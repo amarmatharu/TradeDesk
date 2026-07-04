@@ -4,6 +4,11 @@
 > Purpose: benchmark TradeDesk against the most advanced trading systems
 > (institutional quant + state-of-the-art multi-agent LLM research), identify
 > the gaps, and sequence the work to close them.
+>
+> **BUILD STATUS (2026-07-04):** An initial implementation of **all five phases**
+> shipped on branch `feat/pro-grade-phases` (commits 79bc9c2, 16551f3, b2b55ca,
+> 201391d, c78f8c8). These are v1 foundations — real, tested, and wired into the
+> pipeline — not the final word on each area. Live endpoints below.
 
 ---
 
@@ -84,32 +89,29 @@ The canonical separation of concerns (Narang, *Inside the Black Box* + modern in
 
 Sequenced by "what must be true before the next thing is worth doing."
 
-### Phase 0 — Ground truth (do first, before any real-money trade)
+### Phase 0 — Ground truth ✅ v1 shipped (`79bc9c2`)
 *Goal: honestly measure the system.*
-- [ ] **Reconciliation service** — continuously diff broker positions vs internal ledger; alert on drift.
-- [ ] **Point-in-time data capture** — snapshot exact decision inputs (price/news/fundamentals) so decisions are replayable and backtests are look-ahead-safe.
-- [ ] **Pipeline replay & validation harness** — turn `agent_runs` logs into a deterministic replay + evaluation engine (A/B prompts, measure lift).
-- [ ] **Metrics that matter** — expectancy, Deflated Sharpe, max drawdown, hit-rate by pattern/strategy, P&L attribution — on a dashboard.
+- [x] **Reconciliation service** — `reconciliation.py`, `/api/recon`. (Already caught real ledger↔broker drift.)
+- [x] **Point-in-time data capture** — `snapshots.py`; every pipeline decision frozen with a PROMPT_VERSION tag. *(v1 = decision inputs; full market-state snapshotting is a later extension.)*
+- [x] **Pipeline replay & validation harness** — `replay.py`, `/api/validation`: pipeline realized edge + confidence calibration.
+- [x] **Metrics that matter** — `metrics.py`, `/api/metrics`: expectancy, Sharpe/Sortino, max DD, **Deflated Sharpe**, per-pattern/strategy breakdown, with small-sample caveat. *(TODO: dashboard UI.)*
 
-### Phase 1 — Decision quality (highest ROI for the losing win-rate)
-*Goal: make each decision more robust.*
-- [ ] **Bull/bear Researcher debate** — split Research into adversarial bull vs bear before the Trader synthesizes.
-- [ ] **Portfolio construction layer** — correlation-aware sizing, sector/factor exposure limits, Kelly-fraction sizing driven by *validated* per-pattern edge.
-- [ ] **Quantitative risk model** — correlation matrix, portfolio beta, simple VaR, concentration limits.
+### Phase 1 — Decision quality ✅ v1 shipped (`16551f3`)
+- [x] **Bull/bear Researcher debate** — `agents/debate.py`; both cases injected into the Trader.
+- [x] **Portfolio construction** — `portfolio_construction.py`: correlation haircut + fractional-Kelly from validated edge; wired to override raw share counts. *(TODO: explicit sector taxonomy.)*
+- [x] **Quantitative risk model** — `risk_model.py`, `/api/risk/portfolio`: correlation matrix, betas, 95% 1-day VaR, HHI concentration.
 
-### Phase 2 — Memory & alpha
-*Goal: reason from own history + systematic signals.*
-- [ ] **Layered/semantic memory** — vector store of past trades/situations; Research retrieves the N most similar setups and how they resolved.
-- [ ] **Systematic factor layer** — continuous signals (momentum, mean-reversion, volatility, insider-cluster) to complement reactive news, with learned combination weights.
+### Phase 2 — Memory & alpha ✅ v1 shipped (`b2b55ca`)
+- [x] **Semantic memory** — `memory.py`, `/api/memory/similar`: dependency-free TF-IDF analogical recall over the trade journal; injected into Research. *(v1 = TF-IDF; embeddings/vector DB are a later upgrade.)*
+- [x] **Systematic factor layer** — `signals.py`, `/api/signals/{ticker}`: momentum/trend/mean-reversion/RSI composite. *(TODO: learned combination weights; insider-cluster factor.)*
 
-### Phase 3 — Execution & ops
-*Goal: professional execution + observability.*
-- [ ] **EMS upgrade** — limit/VWAP/TWAP entries, slippage model feeding pre-trade cost into sizing; post-trade TCA.
-- [ ] **Observability & governance** — structured metrics, prompt/model versioning, deterministic replay for model-risk.
+### Phase 3 — Execution & ops ✅ v1 shipped (`201391d`)
+- [x] **TCA** — `tca.py`, `/api/tca` + `/api/tca/estimate`: pre-trade cost estimate (spread + sqrt-impact) and post-trade implementation shortfall. *(TODO: actual VWAP/TWAP order routing.)*
+- [x] **Prompt/model versioning** — stamped on decision snapshots (Phase 0). *(TODO: observability dashboard.)*
 
-### Phase 4 — Robustness & scale
-- [ ] Regime detection, stress testing, multi-model ensemble.
-- [ ] **Formal live-promotion gate** — no strategy reaches real money until it clears Deflated-Sharpe / PBO thresholds out-of-sample.
+### Phase 4 — Robustness & scale ✅ v1 shipped (`c78f8c8`)
+- [x] **Regime detection** — `regime.py`, `/api/regime`: trend + volatility regime → risk multiplier, wired into sizing. *(TODO: stress testing, multi-model ensemble.)*
+- [x] **Formal live-promotion gate** — `promotion.py`, `/api/promotion`: `can_go_live()` blocks real money until Deflated-Sharpe / sample / drawdown / profit-factor gates pass; wired into the AUTO_LIVE path. *(Currently returns FALSE — as it should.)*
 
 ---
 
