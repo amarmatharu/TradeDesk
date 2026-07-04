@@ -104,9 +104,23 @@ Deflated Sharpe, and we believed the harness whatever it said.
 | 4 | Overnight vs intraday anomaly | `overnight.py` | ⚠ REAL at index level (SPY overnight Sharpe 1.0) but untradeable — daily round trip, dead >1bps |
 | 5 | Turn-of-month / calendar | `calendar_effects.py` | 🟡 SPY TOM Sharpe 1.37, but SPY-only; naive timing loses to buy&hold |
 | 5b | TOM stress test | `tom_stress.py` | ❌ in-sample luck: DSR 0; VOO/IVV (same index) show no effect; levered 0.58 < B&H 1.02 |
+| 6 | **Tactical allocation** (GEM/abs-mom/vol-target), 22y | `tactical_lab.py` | ✅ **WORKS** — beats SPY on Sharpe (0.77–0.79 vs 0.66) + ~halves max DD (−30% vs −55%); 2008: GEM −9% vs SPY −55% |
 
-**Conclusion after 6 rigorous experiments: no durable, cost-surviving, out-of-sample tradeable
-edge found.** The recurring killers were exactly what the research predicted — transaction costs,
+### The turn: stop hunting alpha, change the game to risk management
+Experiments 1–5 all tried to *predict/time equities* (stock-selection alpha) and failed — crowded,
+cost-killed, or beta-in-disguise. Experiment 6 changed the mechanism entirely: **don't predict, just
+rotate between assets and step aside from sustained downtrends.** Over 22 years of real data (incl.
+the 2008 −55% bear, unlockable only after adding a Tiingo long-history feed), three canonical,
+low-turnover tactical strategies ALL beat buy-and-hold risk-adjusted and roughly halved drawdown.
+
+**Honest scope of the win:** it's a *risk-management* edge, not alpha. Sharpe gain is modest
+(0.66→~0.78); the real prize is halving max drawdown (−55%→−30%) while matching/beating total
+return over full cycles. It does NOT dodge fast crashes (2020 hit all −33%) and will trail SPY in
+raging bulls. But it's real, robust across 3 bears + 3 variants, retail-runnable, and low-cost —
+exactly the achievable retail win the research predicted.
+
+**Conclusion: no stock-selection alpha found in 5 tries; the durable, retail-runnable edge is
+tactical asset allocation (risk management), confirmed over 22 years.** The recurring killers were exactly what the research predicted — transaction costs,
 crowding, and market-beta masquerading as alpha. Every "flicker" (insider Q4, momentum 2026, SPY
 TOM) collapsed under out-of-sample / twin-asset / cost scrutiny. This is the normal base rate;
 the *process* (finding this out for free) is the win.
