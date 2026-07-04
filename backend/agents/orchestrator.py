@@ -51,6 +51,30 @@ def _compute_reward_risk(entry, stop, target, direction):
     return round(reward / risk, 2)
 
 
+def _net_reward_risk(ticker, entry, stop, target, direction, shares):
+    """R:R after subtracting estimated round-trip transaction costs from the
+    reward. A 2.5:1 setup with 40bps of friction is not really 2.5:1 — gate on
+    the net number so cost can't be ignored. Returns (net_rr, est_cost_bps)."""
+    try:
+        entry = float(entry); stop = float(stop); target = float(target)
+    except (TypeError, ValueError):
+        return None, None
+    risk = (entry - stop) if direction == "LONG" else (stop - entry)
+    reward = (target - entry) if direction == "LONG" else (entry - target)
+    if risk <= 0 or reward <= 0:
+        return None, None
+    est_cost_bps = None
+    try:
+        import tca
+        est = tca.estimate_cost(ticker, shares or 100, entry)
+        est_cost_bps = est.get("round_trip_bps")
+        cost_per_share = entry * (est_cost_bps or 0) / 10000.0
+        reward = max(0.0, reward - cost_per_share)
+    except Exception:
+        pass
+    return round(reward / risk, 2), est_cost_bps
+
+
 # ─── Pipeline ─────────────────────────────────────────────────────────────────
 
 async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
@@ -99,24 +123,32 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
         pipeline_result["filter_reason"] = "Research declined or low confidence"
         return pipeline_result
 
-    # ─── Stage 2b: Structural reward:risk gate ───────────────────
+    # ─── Stage 2b: Structural reward:risk gate (net of estimated costs) ──
     rr = _compute_reward_risk(
         research_out.get("entry"), research_out.get("stop"),
         research_out.get("target1"), research_out.get("direction"),
     )
-    research_out["rr_computed"] = rr
-    if rr is None or rr < MIN_REWARD_RISK:
+    rr_net, est_cost_bps = _net_reward_risk(
+        research_out.get("ticker"), research_out.get("entry"), research_out.get("stop"),
+        research_out.get("target1"), research_out.get("direction"), research_out.get("shares"),
+    )
+    research_out["rr_computed"] = rr          # gross (for reference)
+    research_out["rr_net"] = rr_net           # net of transaction costs
+    research_out["est_cost_bps"] = est_cost_bps
+    gate_rr = rr_net if rr_net is not None else rr   # gate on the net number
+    if gate_rr is None or gate_rr < MIN_REWARD_RISK:
         pipeline_result["final_action"] = "RR_REJECTED"
         pipeline_result["filter_reason"] = (
-            f"R:R {rr} < {MIN_REWARD_RISK} required "
-            f"(entry={research_out.get('entry')} stop={research_out.get('stop')} "
+            f"Net R:R {gate_rr} < {MIN_REWARD_RISK} required "
+            f"(gross {rr}, ~{est_cost_bps}bps cost; "
+            f"entry={research_out.get('entry')} stop={research_out.get('stop')} "
             f"T1={research_out.get('target1')})"
         )
         await publish(
             source="agent",
             type="pipeline_complete",
             data={"pipeline": pipeline_result},
-            title=f"R:R too low ({rr}): {research_out.get('ticker','')}",
+            title=f"Net R:R too low ({gate_rr}): {research_out.get('ticker','')}",
             impact="LOW",
         )
         return pipeline_result
