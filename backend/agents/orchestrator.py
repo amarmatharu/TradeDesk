@@ -20,6 +20,10 @@ _mode = "SUGGEST"
 # "Min R:R 2:1" line in the Research prompt is advisory only — this enforces it.
 MIN_REWARD_RISK = 2.5
 
+# Prompt/model version tag — stamped on decision snapshots so A/B of prompt
+# changes is possible via the replay harness. Bump when prompts change.
+PROMPT_VERSION = "2026.07-debate"
+
 
 def get_mode() -> str:
     return _mode
@@ -130,9 +134,18 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
         pipeline_result["filter_reason"] = risk_out.get("reason")
         return pipeline_result
 
+    # ─── Stage 3b: Researcher debate (bull vs bear) ──────────────
+    debate_out = None
+    try:
+        from agents.debate import debate
+        debate_out = await debate(event, research_out)
+        pipeline_result["stages"]["debate"] = debate_out
+    except Exception as e:
+        pipeline_result["stages"]["debate"] = {"available": False, "error": str(e)[:120]}
+
     # ─── Stage 4: Trader ─────────────────────────────────────────
     try:
-        trader_out = await trade_decision(event, scout_out, research_out, risk_out)
+        trader_out = await trade_decision(event, scout_out, research_out, risk_out, debate_out)
         pipeline_result["stages"]["trader"] = trader_out
     except Exception as e:
         pipeline_result["error"] = f"Trader error: {e}"
@@ -151,9 +164,38 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
         confidence = trader_out.get("confidence", 0)
         thesis = research_out.get("thesis", "")
 
+        # Phase 1: portfolio construction — override raw shares with a
+        # correlation-aware, edge-weighted (fractional-Kelly) size.
+        try:
+            import portfolio_construction as pc
+            sized = pc.suggest_size(ticker, entry, stop, portfolio_size,
+                                    pattern_tags=research_out.get("pattern_tags") or [])
+            pipeline_result["sizing"] = sized
+            if sized.get("blocked"):
+                pipeline_result["final_action"] = "SIZING_BLOCKED"
+                pipeline_result["filter_reason"] = sized.get("reason")
+                return pipeline_result
+            if sized.get("shares"):
+                shares = sized["shares"]
+        except Exception as e:
+            pipeline_result["sizing_error"] = str(e)[:120]
+
         # Which strategy does this trade belong to?
         import strategies
         strat = strategies.resolve_strategy(event)
+
+        # Phase 4: live-promotion gate — real money requires a passing grade.
+        if _mode == "AUTO_LIVE":
+            try:
+                import promotion
+                if not promotion.can_go_live():
+                    pipeline_result["final_action"] = "LIVE_BLOCKED_UNPROVEN"
+                    pipeline_result["filter_reason"] = (
+                        "AUTO_LIVE blocked: strategy has not cleared the promotion "
+                        "gate (deflated Sharpe / sample / drawdown). See /api/promotion.")
+                    return pipeline_result
+            except Exception:
+                pass
 
         if _mode in ("AUTO_PAPER", "AUTO_LIVE"):
             # Auto-execute the trade (paper), tagged with its strategy
@@ -166,6 +208,20 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
             )
             pipeline_result["paper_execution"] = exec_result
             pipeline_result["strategy"] = strat
+
+            # Phase 3: record realized slippage (decision price vs actual fill).
+            try:
+                import tca
+                fill = (exec_result or {}).get("fill_price") or (exec_result or {}).get("entry")
+                if fill and entry:
+                    tca.record_fill(
+                        position_id=(exec_result or {}).get("position_id"),
+                        ticker=ticker,
+                        side="BUY" if research_out.get("direction") == "LONG" else "SELL",
+                        decision_price=entry, fill_price=fill, shares=shares,
+                    )
+            except Exception:
+                pass
         else:
             # SUGGEST mode — create pending trade for user approval
             trade_id = create_pending_trade(event, scout_out, research_out, risk_out, trader_out)
@@ -184,6 +240,13 @@ async def run_pipeline(event: dict, portfolio_size: float = 25000) -> dict:
             )
 
     pipeline_result["duration_ms"] = int((time.time() - pipeline_start) * 1000)
+
+    # Phase 0: freeze a point-in-time snapshot of this decision (replay/validation).
+    try:
+        import snapshots
+        snapshots.capture(event, pipeline_result, prompt_version=PROMPT_VERSION)
+    except Exception:
+        pass
     return pipeline_result
 
 

@@ -1351,6 +1351,99 @@ async def broker_positions():
     import broker
     return {"positions": broker.get_positions()}
 
+# ─── Phase 0: metrics, reconciliation, validation ─────────────────────────────
+
+@app.get("/api/metrics")
+async def performance_metrics():
+    """Honest performance metrics over all closed trades (expectancy, Sharpe,
+    Deflated Sharpe, max drawdown, per-pattern/strategy breakdown)."""
+    import metrics
+    try:
+        return metrics.compute_metrics()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/recon")
+async def reconciliation_check():
+    """Diff the internal ledger against the active broker account."""
+    import reconciliation
+    try:
+        return reconciliation.reconcile()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+@app.get("/api/validation")
+async def validation_report():
+    """Pipeline edge + confidence calibration + snapshot count (Phase 0 harness)."""
+    import replay
+    try:
+        return replay.validation_report()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/risk/portfolio")
+async def portfolio_risk():
+    """Quantitative portfolio risk — correlation matrix, beta, VaR, concentration."""
+    import risk_model
+    try:
+        return risk_model.portfolio_risk()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/signals/{ticker}")
+async def factor_signals(ticker: str):
+    """Systematic factor signals (momentum/trend/mean-reversion/RSI) + composite."""
+    import signals
+    try:
+        return signals.compute(ticker.upper())
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/memory/similar")
+async def memory_similar(ticker: str = "", direction: str = "", thesis: str = ""):
+    """Retrieve the most analogous past trades to a candidate setup."""
+    import memory
+    try:
+        return memory.recall_similar(ticker.upper(), direction.upper(), thesis)
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/tca")
+async def tca_report():
+    """Post-trade execution quality (realized slippage vs decision price)."""
+    import tca
+    try:
+        return tca.report()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/tca/estimate")
+async def tca_estimate(ticker: str, shares: float, price: float):
+    """Pre-trade round-trip cost estimate (spread + market impact) in bps."""
+    import tca
+    try:
+        return tca.estimate_cost(ticker.upper(), shares, price)
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/regime")
+async def market_regime():
+    """Current market regime (trend + volatility) and suggested risk posture."""
+    import regime
+    try:
+        return regime.detect()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
+@app.get("/api/promotion")
+async def promotion_gate():
+    """Live-promotion gate — is the strategy statistically ready for real money?"""
+    import promotion
+    try:
+        return promotion.evaluate()
+    except Exception as e:
+        return {"error": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.
