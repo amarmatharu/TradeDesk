@@ -35,3 +35,6 @@ backend/conf/
 
 # WeBull SDK debug logs
 backend/webull_trade_sdk.log*
+
+# Backtest data caches (downloaded market data)
+backend/.*_cache/
