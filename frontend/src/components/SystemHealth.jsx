@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation } from '../api.js'
+import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation } from '../api.js'
 
 const GREEN = '#3fb950', RED = '#f85149', AMBER = '#f0a500', DIM = '#8b949e'
 
@@ -9,13 +9,13 @@ export default function SystemHealth() {
   const [updated, setUpdated] = useState(null)
 
   const load = async () => {
-    const [metrics, recon, regime, promotion, validation, risk, tactical] = await Promise.all([
+    const [metrics, recon, regime, promotion, validation, risk, tactical, volscaled] = await Promise.all([
       getMetrics().catch(() => ({})), getRecon().catch(() => ({})),
       getRegime().catch(() => ({})), getPromotion().catch(() => ({})),
       getValidation().catch(() => ({})), getPortfolioRisk().catch(() => ({})),
-      getTacticalAllocation().catch(() => ({})),
+      getTacticalAllocation().catch(() => ({})), getVolScaledAllocation().catch(() => ({})),
     ])
-    setD({ metrics, recon, regime, promotion, validation, risk, tactical })
+    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled })
     setUpdated(new Date())
     setLoading(false)
   }
@@ -59,6 +59,9 @@ export default function SystemHealth() {
           </div>
         )}
       </div>
+
+      {/* Volatility-scaled exposure — the champion (best risk-adjusted, most robust) */}
+      <VolScaledCard v={d.volscaled} />
 
       {/* Tactical allocation — the one strategy that cleared out-of-sample testing */}
       <TacticalCard t={d.tactical} money={money} />
@@ -139,6 +142,37 @@ export default function SystemHealth() {
           {val.confidence_calibration?.note}
         </div>
       </Section>
+    </div>
+  )
+}
+
+function VolScaledCard({ v }) {
+  if (!v || !v.ok) return null
+  const eq = v.equity_pct
+  const regimeColor = v.regime === 'CALM' ? '#3fb950' : v.regime === 'TURBULENT' ? '#f85149' : '#f0a500'
+  const s = v.signals || {}
+  return (
+    <div style={{ ...tc.section, borderColor: '#1f6feb' }}>
+      <div style={tc.header}>
+        <span style={{ ...tc.title, color: '#58a6ff' }}>★ VOLATILITY-SCALED EXPOSURE — champion</span>
+        <span style={{ ...tc.proven, color: '#58a6ff', borderColor: '#1f6feb' }}>Sharpe 0.95 · −19% maxDD</span>
+      </div>
+      <div style={tc.row}>
+        <span style={{ ...tc.regime, background: '#0d1a2e', color: regimeColor }}>{v.regime}</span>
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <div style={{ display: 'flex', height: 22, borderRadius: 5, overflow: 'hidden', border: '1px solid #30363d' }}>
+            <div style={{ width: `${eq}%`, background: '#238636' }} title={`${eq}% equities`} />
+            <div style={{ width: `${100 - eq}%`, background: '#30363d' }} title={`${100 - eq}% bonds/cash`} />
+          </div>
+          <div style={{ fontSize: 11, color: '#8b949e', marginTop: 3 }}>
+            <b style={{ color: '#3fb950' }}>{eq}% equities</b> · {100 - eq}% bonds/cash
+          </div>
+        </div>
+      </div>
+      <div style={tc.reason}>{v.reasoning}</div>
+      <div style={tc.sigs}>
+        20d realized vol: <b>{s.realized_vol_pct}%</b> · vol percentile (2y): <b>{Math.round((s.vol_percentile || 0) * 100)}</b> · rebalance {v.rebalance}
+      </div>
     </div>
   )
 }

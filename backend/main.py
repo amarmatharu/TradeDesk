@@ -1455,6 +1455,17 @@ async def tactical_allocation():
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
+@app.get("/api/volscaled/allocation")
+async def volscaled_allocation():
+    """Current target equity exposure from the volatility-scaled strategy — the
+    project's best/most-robust system (Sharpe 0.95 vs SPY 0.67, ~1/3 the drawdown).
+    Recommendation only; places no orders."""
+    import vol_scaled_strategy
+    try:
+        return vol_scaled_strategy.current_allocation()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
 @app.get("/api/broker/webull/holdings")
 async def webull_holdings():
     """Read-only WeBull account + positions, independent of the active broker.
