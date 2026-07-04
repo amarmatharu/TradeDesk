@@ -165,11 +165,13 @@ function EarningsAlert({ earnings }) {
         <span key={i} style={{ fontSize: 12, color: '#e6edf3' }}>
           <b style={{ color: e.held ? '#3fb950' : '#f0a500' }}>{e.ticker}</b>
           {' '}{e.days_until === 0 ? 'today' : e.days_until === 1 ? 'tomorrow' : `in ${e.days_until}d`}
-          {' '}({e.date}{e.when ? `, ${e.when}` : ''}){e.held ? ' — you hold this' : ''}
+          {' '}({e.date}{e.when ? `, ${e.when}` : ''})
+          {e.expected_move ? <b style={{ color: '#d29922' }}> · typically ±{e.expected_move.typical_move_pct}%</b> : ''}
+          {e.held ? ' — you hold this' : ''}
           {i < soon.length - 1 ? ' ·' : ''}
         </span>
       ))}
-      <span style={{ fontSize: 10, color: '#8b949e' }}>— expect a possible overnight gap</span>
+      <span style={{ fontSize: 10, color: '#8b949e' }}>— sized/held risk, not a direction call</span>
     </div>
   )
 }
