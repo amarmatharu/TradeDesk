@@ -83,38 +83,106 @@ def _benzinga_times(date_from, date_to):
     return out
 
 
+_EARN_CACHE = {}              # ticker -> (ts, quarterlyEarnings list)
+_PRICE_CACHE = {}            # ticker -> (ts, (dates, closes))
+
+
+def _av_earnings(ticker: str):
+    """Full quarterly earnings history from AV (dates + surprises). Cached 24h."""
+    tk = ticker.upper()
+    c = _EARN_CACHE.get(tk)
+    if c and time.time() - c[0] < 24 * 3600:
+        return c[1]
+    key = os.environ.get("ALPHA_VANTAGE_KEY", "")
+    q = []
+    if key:
+        try:
+            url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={tk}&apikey={key}"
+            d = json.loads(urllib.request.urlopen(url, timeout=30).read().decode())
+            q = d.get("quarterlyEarnings", []) or []
+        except Exception:
+            q = _EARN_CACHE.get(tk, (0, []))[1]
+    _EARN_CACHE[tk] = (time.time(), q)
+    return q
+
+
+def _daily_closes(ticker: str):
+    """Tiingo daily closes -> (dates_list, closes_array). Cached 24h."""
+    import numpy as np
+    tk = ticker.upper()
+    c = _PRICE_CACHE.get(tk)
+    if c and time.time() - c[0] < 24 * 3600:
+        return c[1]
+    key = os.environ.get("TIINGO_KEY", "")
+    out = ([], np.array([]))
+    if key:
+        try:
+            url = (f"https://api.tiingo.com/tiingo/daily/{tk}/prices?startDate=2016-01-01"
+                   f"&token={key}&format=json&resampleFreq=daily")
+            req = urllib.request.Request(url, headers={"Content-Type": "application/json"})
+            d = json.loads(urllib.request.urlopen(req, timeout=40).read().decode())
+            out = ([r["date"][:10] for r in d], np.array([r["adjClose"] for r in d], float))
+        except Exception:
+            out = _PRICE_CACHE.get(tk, (0, out))[1]
+    _PRICE_CACHE[tk] = (time.time(), out)
+    return out
+
+
 def get_track_record(ticker: str) -> dict:
-    """Beat/miss history from Alpha Vantage EARNINGS (last 8 quarters). Cached 24h
-    per ticker — only fetched for YOUR tickers to respect AV's 25/day limit."""
+    """Beat/miss history (last 8 quarters). Only for YOUR tickers (AV-limit safe)."""
     tk = ticker.upper()
     c = _TR_CACHE.get(tk)
     if c and time.time() - c[0] < 24 * 3600:
         return c[1]
-    key = os.environ.get("ALPHA_VANTAGE_KEY", "")
-    if not key:
-        return {}
-    rec = {}
-    try:
-        url = f"https://www.alphavantage.co/query?function=EARNINGS&symbol={tk}&apikey={key}"
-        d = json.loads(urllib.request.urlopen(url, timeout=30).read().decode())
-        q = d.get("quarterlyEarnings", [])[:8]
-        surprises = []
-        beats = 0
-        for e in q:
-            try:
-                sp = float(e.get("surprisePercentage"))
-                surprises.append(sp)
-                if sp > 0:
-                    beats += 1
-            except (TypeError, ValueError):
-                continue
-        if surprises:
-            rec = {"beats": beats, "of": len(surprises),
-                   "avg_surprise_pct": round(sum(surprises) / len(surprises), 1)}
-    except Exception:
-        rec = _TR_CACHE.get(tk, (0, {}))[1]
+    q = _av_earnings(tk)[:8]
+    surprises, beats = [], 0
+    for e in q:
+        try:
+            sp = float(e.get("surprisePercentage"))
+            surprises.append(sp)
+            beats += sp > 0
+        except (TypeError, ValueError):
+            continue
+    rec = {"beats": beats, "of": len(surprises),
+           "avg_surprise_pct": round(sum(surprises) / len(surprises), 1)} if surprises else {}
     _TR_CACHE[tk] = (time.time(), rec)
     return rec
+
+
+def get_expected_move(ticker: str) -> dict:
+    """How much the stock TYPICALLY moves around earnings (historical reaction).
+    This is RISK, not a direction prediction: the median absolute move from the
+    close before each of the last ~8 reports to the close 2 days later."""
+    import numpy as np
+    q = _av_earnings(ticker)[:8]
+    dates, closes = _daily_closes(ticker)
+    if not q or len(closes) < 60:
+        return {}
+    didx = {d: i for i, d in enumerate(dates)}
+    sorted_dates = dates  # already ascending
+    moves = []
+    for e in q:
+        rd = (e.get("reportedDate") or "")[:10]
+        if not rd:
+            continue
+        # index of last trading day strictly before the report
+        i0 = None
+        for i in range(len(sorted_dates) - 1, -1, -1):
+            if sorted_dates[i] < rd:
+                i0 = i
+                break
+        if i0 is None or i0 + 2 >= len(closes):
+            continue
+        moves.append(abs(closes[i0 + 2] / closes[i0] - 1.0))   # 2-day reaction window
+    if len(moves) < 3:
+        return {}
+    m = np.array(moves)
+    return {
+        "typical_move_pct": round(float(np.median(m)) * 100, 1),
+        "biggest_move_pct": round(float(np.max(m)) * 100, 1),
+        "smallest_move_pct": round(float(np.min(m)) * 100, 1),
+        "n": len(moves),
+    }
 
 
 def _my_tickers():
@@ -166,11 +234,14 @@ def get_upcoming(days: int = 14) -> dict:
 
     out.sort(key=lambda x: (x["date"], x["ticker"]))
     mine = [x for x in out if x["in_watchlist"] or x["held"]]
-    # Beat/miss track record only for YOUR tickers (AV rate-limit friendly)
+    # For YOUR tickers only (AV rate-limit friendly): beat/miss record + expected move
     for x in mine:
         tr = get_track_record(x["ticker"])
         if tr:
             x["track_record"] = tr
+        em = get_expected_move(x["ticker"])
+        if em:
+            x["expected_move"] = em
     return {
         "days": days,
         "count": len(out),

@@ -943,6 +943,18 @@ async def earnings_upcoming(days: int = 14):
     except Exception as e:
         return {"error": str(e)[:200], "mine": [], "all": []}
 
+@app.get("/api/earnings/expectation/{ticker}")
+async def earnings_expectation(ticker: str):
+    """Honest earnings preview for one ticker: consensus, beat/miss track record,
+    and the historical TYPICAL MOVE (risk, not a direction prediction)."""
+    import earnings
+    t = ticker.upper()
+    try:
+        return {"ticker": t, "track_record": earnings.get_track_record(t),
+                "expected_move": earnings.get_expected_move(t)}
+    except Exception as e:
+        return {"ticker": t, "error": str(e)[:200]}
+
 
 @app.get("/api/earnings/history/{ticker}")
 async def earnings_history(ticker: str):

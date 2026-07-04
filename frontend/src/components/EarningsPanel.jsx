@@ -40,6 +40,11 @@ export default function EarningsPanel({ onSelectTicker }) {
           {/* Your watchlist + holdings */}
           <div style={s.section}>
             <div style={s.sectionTitle}>★ YOUR WATCHLIST & HOLDINGS ({mine.length})</div>
+            <div style={{ fontSize: 11, color: '#8b949e' }}>
+              "Typical move" = how much the stock <b>historically</b> swings on earnings — this is
+              <b style={{ color: '#d29922' }}> risk (size accordingly), NOT a prediction of direction.</b>
+              {' '}Nobody can reliably predict the outcome.
+            </div>
             {mine.length === 0 ? (
               <div style={s.empty}>None of your tracked/held tickers report in the next {days} days.</div>
             ) : (
@@ -63,7 +68,7 @@ function Table({ rows, onSelectTicker, highlight }) {
     <table style={s.table}>
       <thead>
         <tr style={s.thead}>
-          {['When', 'Date', 'Ticker', 'Time', 'EPS est.', 'Track record', 'Company'].map(h => <th key={h} style={s.th}>{h}</th>)}
+          {['When', 'Date', 'Ticker', 'Time', 'EPS est.', 'Track record', 'Typical move', 'Company'].map(h => <th key={h} style={s.th}>{h}</th>)}
         </tr>
       </thead>
       <tbody>
@@ -90,7 +95,15 @@ function Table({ rows, onSelectTicker, highlight }) {
                 </span>
               ) : '—'}
             </td>
-            <td style={{ ...s.td, color: '#8b949e', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.company}</td>
+            <td style={s.td}>
+              {e.expected_move ? (
+                <span title={`historically moved ${e.expected_move.smallest_move_pct}%–${e.expected_move.biggest_move_pct}% (n=${e.expected_move.n}); RISK, not a prediction`}>
+                  <b style={{ color: '#d29922' }}>±{e.expected_move.typical_move_pct}%</b>
+                  <span style={{ color: '#8b949e' }}> (max {e.expected_move.biggest_move_pct}%)</span>
+                </span>
+              ) : '—'}
+            </td>
+            <td style={{ ...s.td, color: '#8b949e', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.company}</td>
           </tr>
         ))}
       </tbody>
