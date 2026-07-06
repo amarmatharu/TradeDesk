@@ -18,7 +18,8 @@ export default function SystemHealth() {
     ])
     const earnings = await getUpcomingEarnings(7).catch(() => ({ mine: [] }))
     const crypto = await getCryptoSignal().catch(() => ({}))
-    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan, earnings, crypto })
+    const cryptoPaper = await getCryptoPaper().catch(() => ({}))
+    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan, earnings, crypto, cryptoPaper })
     setUpdated(new Date())
     setLoading(false)
   }
@@ -74,6 +75,9 @@ export default function SystemHealth() {
 
       {/* Crypto trend signal — speculative satellite */}
       <CryptoCard c={d.crypto} />
+
+      {/* Crypto paper-trading track record (forward test) */}
+      <CryptoPaperCard cp={d.cryptoPaper} />
 
       {/* Tactical allocation — the one strategy that cleared out-of-sample testing */}
       <TacticalCard t={d.tactical} money={money} />
@@ -176,6 +180,41 @@ function EarningsAlert({ earnings }) {
         </span>
       ))}
       <span style={{ fontSize: 10, color: '#8b949e' }}>— sized/held risk, not a direction call</span>
+    </div>
+  )
+}
+
+function CryptoPaperCard({ cp }) {
+  if (!cp || !cp.ok) return null
+  const pos = cp.positions || {}
+  const ret = cp.return_pct
+  return (
+    <div style={{ ...tc.section, borderColor: '#30363d' }}>
+      <div style={tc.header}>
+        <span style={{ ...tc.title, color: '#a371f7' }}>◈ CRYPTO PAPER TRADING — live forward-test</span>
+        <span style={tc.dim}>since {cp.started_at ? cp.started_at.slice(0, 10) : '—'}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', alignItems: 'baseline' }}>
+        <span style={{ fontSize: 20, fontWeight: 800, color: '#e6edf3' }}>${cp.equity?.toLocaleString()}</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: ret >= 0 ? '#3fb950' : '#f85149' }}>
+          {ret >= 0 ? '+' : ''}{ret}%
+        </span>
+        <span style={tc.dim}>from ${cp.start_capital?.toLocaleString()} · maxDD {cp.max_drawdown_pct}% · {cp.n_trades} trades</span>
+      </div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#c9d1d9' }}>
+        <span>Cash: <b>${cp.cash?.toLocaleString()}</b></span>
+        {['BTC', 'ETH'].map(k => pos[k] && (
+          <span key={k}>{k}: <b style={{ color: pos[k].signal === 'HOLD' ? '#3fb950' : '#8b949e' }}>
+            {pos[k].value > 0 ? `$${pos[k].value.toLocaleString()}` : `flat (${pos[k].signal})`}</b></span>
+        ))}
+      </div>
+      {(cp.recent_trades || []).length > 0 && (
+        <div style={{ fontSize: 11, color: '#8b949e' }}>
+          Recent: {cp.recent_trades.slice(0, 4).map((t, i) =>
+            `${t.side} ${t.symbol} $${t.value?.toLocaleString()}`).join(' · ')}
+        </div>
+      )}
+      <div style={{ fontSize: 10, color: '#8b949e' }}>{cp.note}</div>
     </div>
   )
 }

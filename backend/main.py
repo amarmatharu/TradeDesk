@@ -113,6 +113,10 @@ async def startup_event():
     asyncio.create_task(_heartbeat_loop())
     print("[TradeDesk] Heartbeat started")
 
+    # Crypto paper-trading loop — forward-test the validated trend strategy 24/7
+    asyncio.create_task(_crypto_paper_loop())
+    print("[TradeDesk] Crypto paper-trading loop started")
+
 
 HEARTBEAT_FILE = "/tmp/tradedesk-heartbeat"
 _START_TIME = time.time()
@@ -125,6 +129,20 @@ async def _heartbeat_loop():
         except Exception:
             pass
         await asyncio.sleep(20)
+
+async def _crypto_paper_loop():
+    """Step the crypto paper strategy on startup, then every 6h (crypto is 24/7,
+    but the 50-day daily signal only changes daily, so 6h is ample)."""
+    import crypto_paper
+    await asyncio.sleep(15)          # let startup settle
+    while True:
+        try:
+            r = await asyncio.to_thread(crypto_paper.step)
+            if r.get("trades"):
+                print(f"[CryptoPaper] rebalanced: {r['trades']} equity=${r.get('equity')}")
+        except Exception as e:
+            print(f"[CryptoPaper] step error: {str(e)[:120]}")
+        await asyncio.sleep(6 * 3600)
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -1495,6 +1513,24 @@ async def crypto_signal():
     import crypto_strategy
     try:
         return crypto_strategy.current_signal()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+@app.get("/api/crypto/paper")
+async def crypto_paper_status():
+    """Crypto paper-trading track record (forward-testing the trend strategy)."""
+    import crypto_paper
+    try:
+        return crypto_paper.status()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
+@app.post("/api/crypto/paper/step")
+async def crypto_paper_step():
+    """Manually trigger a paper rebalance step (also runs automatically every 6h)."""
+    import crypto_paper
+    try:
+        return crypto_paper.step()
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
