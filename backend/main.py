@@ -1488,6 +1488,16 @@ async def volscaled_allocation():
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
+@app.get("/api/crypto/signal")
+async def crypto_signal():
+    """Crypto trend signal (BTC/ETH above/below 50-day average → HOLD/CASH) — the
+    stress-tested crypto strategy. Speculative satellite. Recommendation only."""
+    import crypto_strategy
+    try:
+        return crypto_strategy.current_signal()
+    except Exception as e:
+        return {"ok": False, "reason": str(e)[:200]}
+
 @app.get("/api/plan")
 async def master_plan():
     """The unified daily/weekly plan: validated core (vol-scaling + GEM crash

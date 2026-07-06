@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation, getMasterPlan, getUpcomingEarnings } from '../api.js'
+import { getMetrics, getRecon, getRegime, getPromotion, getValidation, getPortfolioRisk, getTacticalAllocation, getVolScaledAllocation, getMasterPlan, getUpcomingEarnings, getCryptoSignal } from '../api.js'
 
 const GREEN = '#3fb950', RED = '#f85149', AMBER = '#f0a500', DIM = '#8b949e'
 
@@ -17,7 +17,8 @@ export default function SystemHealth() {
       getMasterPlan().catch(() => ({})),
     ])
     const earnings = await getUpcomingEarnings(7).catch(() => ({ mine: [] }))
-    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan, earnings })
+    const crypto = await getCryptoSignal().catch(() => ({}))
+    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan, earnings, crypto })
     setUpdated(new Date())
     setLoading(false)
   }
@@ -70,6 +71,9 @@ export default function SystemHealth() {
 
       {/* Volatility-scaled exposure — the champion (best risk-adjusted, most robust) */}
       <VolScaledCard v={d.volscaled} />
+
+      {/* Crypto trend signal — speculative satellite */}
+      <CryptoCard c={d.crypto} />
 
       {/* Tactical allocation — the one strategy that cleared out-of-sample testing */}
       <TacticalCard t={d.tactical} money={money} />
@@ -172,6 +176,35 @@ function EarningsAlert({ earnings }) {
         </span>
       ))}
       <span style={{ fontSize: 10, color: '#8b949e' }}>— sized/held risk, not a direction call</span>
+    </div>
+  )
+}
+
+function CryptoCard({ c }) {
+  if (!c || !c.ok || !c.assets) return null
+  return (
+    <div style={{ ...tc.section, borderColor: '#8957e5' }}>
+      <div style={tc.header}>
+        <span style={{ ...tc.title, color: '#a371f7' }}>◈ CRYPTO TREND (BTC/ETH) — speculative</span>
+        <span style={{ ...tc.proven, color: '#a371f7', borderColor: '#8957e5' }}>beats HODL · still −55% DD</span>
+      </div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+        {c.assets.filter(a => a.ok).map(a => (
+          <div key={a.symbol} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <b style={{ color: '#e6edf3', fontSize: 14 }}>{a.symbol}</b>
+            <span style={{ fontWeight: 800, fontSize: 13, padding: '3px 10px', borderRadius: 6,
+              background: a.signal === 'HOLD' ? '#132a17' : '#2a1212',
+              color: a.signal === 'HOLD' ? '#3fb950' : '#f85149' }}>
+              {a.signal === 'HOLD' ? '▲ HOLD' : '▼ CASH'}
+            </span>
+            <span style={{ fontSize: 11, color: '#8b949e' }}>
+              ${a.price?.toLocaleString()} · {a.pct_vs_ma50 > 0 ? '+' : ''}{a.pct_vs_ma50}% vs 50d
+            </span>
+          </div>
+        ))}
+      </div>
+      <div style={tc.sigs}>{c.rule}</div>
+      <div style={{ fontSize: 10, color: '#9e6a03' }}>⚠ {c.note}</div>
     </div>
   )
 }

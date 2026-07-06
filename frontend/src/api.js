@@ -35,6 +35,7 @@ export const getPortfolioRisk = () => api.get('/api/risk/portfolio').then(r => r
 export const getTacticalAllocation = () => api.get('/api/tactical/allocation').then(r => r.data)
 export const getVolScaledAllocation = () => api.get('/api/volscaled/allocation').then(r => r.data)
 export const getMasterPlan = () => api.get('/api/plan').then(r => r.data)
+export const getCryptoSignal = () => api.get('/api/crypto/signal').then(r => r.data)
 export const getUpcomingEarnings = (days = 14) => api.get('/api/earnings/upcoming', { params: { days } }).then(r => r.data)
 
 export const getWatchlist = () => api.get('/api/watchlist').then(r => r.data)
