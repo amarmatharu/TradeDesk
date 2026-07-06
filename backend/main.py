@@ -1512,7 +1512,7 @@ async def crypto_signal():
     stress-tested crypto strategy. Speculative satellite. Recommendation only."""
     import crypto_strategy
     try:
-        return crypto_strategy.current_signal()
+        return await asyncio.to_thread(crypto_strategy.current_signal)
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
@@ -1521,16 +1521,16 @@ async def crypto_paper_status():
     """Crypto paper-trading track record (forward-testing the trend strategy)."""
     import crypto_paper
     try:
-        return crypto_paper.status()
+        return await asyncio.to_thread(crypto_paper.status)
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 
 @app.post("/api/crypto/paper/step")
 async def crypto_paper_step():
-    """Manually trigger a paper rebalance step (also runs automatically every 6h)."""
+    """Manually trigger a paper rebalance step (also runs automatically every 3h)."""
     import crypto_paper
     try:
-        return crypto_paper.step()
+        return await asyncio.to_thread(crypto_paper.step)
     except Exception as e:
         return {"ok": False, "reason": str(e)[:200]}
 

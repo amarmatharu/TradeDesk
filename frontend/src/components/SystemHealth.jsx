@@ -243,7 +243,7 @@ function CryptoCard({ c }) {
   return (
     <div style={{ ...tc.section, borderColor: '#8957e5' }}>
       <div style={tc.header}>
-        <span style={{ ...tc.title, color: '#a371f7' }}>◈ CRYPTO TREND (BTC/ETH) — speculative</span>
+        <span style={{ ...tc.title, color: '#a371f7' }}>◈ CRYPTO TREND (10 coins) — speculative</span>
         <span style={{ ...tc.proven, color: '#a371f7', borderColor: '#8957e5' }}>beats HODL · still −55% DD</span>
       </div>
       <div style={{ fontSize: 12, color: '#c9d1d9', marginBottom: 2 }}>
