@@ -1,14 +1,16 @@
 """
-Crypto trend signal — the deployable, stress-tested crypto strategy.
+Crypto trend signal — deployable, stress-tested multi-coin strategy.
 
-The one crypto approach that beat HODL and survived the torture test (see
-crypto_lab.py, crypto_stress.py): hold BTC/ETH when price is above its 50-day
-average, move to cash when it drops below. Robust across every MA length and
-every era; it dodged most of the 2018/2022 crash damage.
+Rule: hold a coin when its price is above its 50-day average, else cash. Robust
+across every MA length and era on BTC/ETH, and it BEAT buy-and-hold on the major
+coins below (each tested — see crypto_lab.py). XRP/DOT/LTC/LINK were tested and
+EXCLUDED because the trend rule did NOT beat HODL on them.
 
-current_signal() returns today's HOLD/CASH call for BTC and ETH. Recommendation
-only — places no orders. This is a SPECULATIVE SATELLITE (extreme risk, still
--55% drawdowns); never a core holding.
+Basket (equal-weight when in trend): the coins where the edge demonstrably holds.
+current_signal() returns today's HOLD/CASH call per coin. Recommendation only.
+
+⚠ SPECULATIVE SATELLITE — extreme risk (even winners had -70%+ drawdowns; newer
+coins have short history). Small allocation you could lose entirely. Never core.
 """
 
 import time
@@ -18,6 +20,15 @@ import os
 import numpy as np
 
 MA = 50
+
+# (tiingo symbol, label, tier)  — tier1 = long history + clear edge; tier2 = newer/marginal
+ASSETS = [
+    ("btcusd", "BTC", 1), ("ethusd", "ETH", 1), ("solusd", "SOL", 2),
+    ("bnbusd", "BNB", 2), ("adausd", "ADA", 2), ("avaxusd", "AVAX", 2),
+    ("dogeusd", "DOGE", 2), ("maticusd", "MATIC", 2), ("atomusd", "ATOM", 2),
+    ("bchusd", "BCH", 2),
+]
+
 _CACHE = {}     # sym -> (ts, (dates, closes))
 
 
@@ -41,7 +52,7 @@ def _recent(sym):
     return out
 
 
-def _one(sym, label):
+def _one(sym, label, tier):
     dates, px = _recent(sym)
     if len(px) < MA + 2:
         return {"symbol": label, "ok": False}
@@ -50,24 +61,23 @@ def _one(sym, label):
     above = price > ma
     dist = (price / ma - 1) * 100
     return {
-        "symbol": label,
-        "ok": True,
+        "symbol": label, "tier": tier, "ok": True,
         "signal": "HOLD" if above else "CASH",
-        "price": round(price, 2),
-        "ma50": round(ma, 2),
+        "price": round(price, 2), "ma50": round(ma, 2),
         "pct_vs_ma50": round(dist, 1),
-        "reasoning": (f"{label} ${price:,.0f} is {abs(dist):.1f}% "
-                      f"{'above' if above else 'below'} its 50-day average "
-                      f"(${ma:,.0f}) → {'HOLD' if above else 'move to CASH'}."),
     }
 
 
 def current_signal() -> dict:
+    assets = [_one(s, l, t) for s, l, t in ASSETS]
+    holds = [a["symbol"] for a in assets if a.get("ok") and a["signal"] == "HOLD"]
     return {
         "ok": True,
-        "assets": [_one("btcusd", "BTC"), _one("ethusd", "ETH")],
-        "rule": "Hold when price > 50-day average, else cash. Check ~daily.",
-        "note": ("SPECULATIVE SATELLITE — beat HODL & survived stress-testing, but "
-                 "extreme risk (still ~-55% drawdowns). Small allocation you could "
-                 "lose entirely. BTC/ETH only; do NOT extend to altcoins. Recommendation only."),
+        "assets": assets,
+        "holding": holds,
+        "n_holding": len(holds),
+        "rule": f"Hold each coin when price > 50-day average, else cash. {len(ASSETS)} coins, equal-weight.",
+        "note": ("SPECULATIVE SATELLITE — trend rule beat HODL on each of these (XRP/DOT/LTC/LINK "
+                 "tested & excluded), but extreme risk (even winners -70%+ drawdowns; newer coins "
+                 "short history). Small allocation you could lose entirely. Recommendation only."),
     }

@@ -1,16 +1,15 @@
 """
 Crypto paper-trading engine — forward-test the validated trend strategy.
 
-Runs the stress-tested crypto trend rule (hold BTC/ETH above their 50-day
-average, else cash) on a PAPER portfolio, 24/7, recording every trade and
-snapshotting equity so we build a real FORWARD track record. This is the
-promotion-gate discipline: prove the backtested edge holds live before any real
-money — not "learning to trade better" (the rule is fixed & validated), but
-learning WHETHER it works going forward.
+Runs the multi-coin trend rule (hold each coin above its 50-day average, else
+cash) on a PAPER portfolio, 24/7, recording every trade + equity so we build a
+real forward track record. Promotion-gate discipline: prove it holds live before
+any real money.
 
-Target: 50% of equity in each asset when its signal is HOLD, 0% when CASH; the
-rest sits in cash. Rebalances only when a target drifts >2% of equity (avoids
-churn). Everything persists in SQLite, so it survives restarts.
+Basket = the coins where the edge tested positive (crypto_strategy.ASSETS). Each
+coin's target = 1/N of equity when HOLD, 0 when CASH (so max ~10% per coin, fully
+invested only if every coin is in trend). Rebalances when a target drifts >2% of
+equity. Flexible positions schema — works for any basket size. Persists in SQLite.
 """
 
 import time
@@ -19,26 +18,38 @@ from database import get_connection
 import crypto_strategy
 
 STARTING_CAPITAL = 10000.0
-TARGET_WEIGHT = 0.5          # per asset when HOLD
-REBAL_THRESHOLD = 0.02       # only trade if target drifts >2% of equity
+REBAL_THRESHOLD = 0.02
 
 
 def ensure_tables():
     conn = get_connection()
+    # migrate off the old 2-coin schema (btc_qty/eth_qty columns) if present
+    try:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(crypto_paper)").fetchall()]
+        eq_cols = [r[1] for r in conn.execute("PRAGMA table_info(crypto_paper_equity)").fetchall()]
+        if "btc_qty" in cols or "btc_sig" in eq_cols:
+            conn.execute("DROP TABLE IF EXISTS crypto_paper")
+            conn.execute("DROP TABLE IF EXISTS crypto_paper_positions")
+            conn.execute("DROP TABLE IF EXISTS crypto_paper_equity")
+            conn.execute("DROP TABLE IF EXISTS crypto_paper_trades")
+            conn.commit()
+    except Exception:
+        pass
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS crypto_paper (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            cash REAL, btc_qty REAL DEFAULT 0, eth_qty REAL DEFAULT 0,
-            start_capital REAL, started_at TEXT, last_step TEXT
+            cash REAL, start_capital REAL, started_at TEXT, last_step TEXT
+        );
+        CREATE TABLE IF NOT EXISTS crypto_paper_positions (
+            symbol TEXT PRIMARY KEY, qty REAL DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS crypto_paper_trades (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts REAL, symbol TEXT, side TEXT, qty REAL, price REAL, value REAL,
-            reason TEXT, created_at TEXT DEFAULT (datetime('now'))
+            id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL, symbol TEXT, side TEXT,
+            qty REAL, price REAL, value REAL, reason TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
         );
         CREATE TABLE IF NOT EXISTS crypto_paper_equity (
-            ts REAL, equity REAL, btc_sig TEXT, eth_sig TEXT,
-            created_at TEXT DEFAULT (datetime('now'))
+            ts REAL, equity REAL, n_holding INTEGER, created_at TEXT DEFAULT (datetime('now'))
         );
     """)
     conn.commit()
@@ -54,102 +65,96 @@ def _load():
                      (STARTING_CAPITAL, STARTING_CAPITAL, datetime.now().isoformat(timespec="seconds")))
         conn.commit()
         row = conn.execute("SELECT * FROM crypto_paper WHERE id=1").fetchone()
+    pos = {r["symbol"]: r["qty"] for r in conn.execute("SELECT symbol, qty FROM crypto_paper_positions").fetchall()}
     conn.close()
-    return dict(row)
+    return dict(row), pos
 
 
-def _prices_and_signals():
+def _market():
     sig = crypto_strategy.current_signal()
-    out = {}
+    price, signal = {}, {}
     for a in sig.get("assets", []):
         if a.get("ok"):
-            out[a["symbol"]] = (a["price"], a["signal"], a.get("pct_vs_ma50"))
-    return out
+            price[a["symbol"]] = a["price"]
+            signal[a["symbol"]] = a["signal"]
+    return price, signal
 
 
 def step() -> dict:
-    """Run one rebalance step. Safe to call repeatedly (idempotent-ish)."""
-    ps = _prices_and_signals()
-    if "BTC" not in ps or "ETH" not in ps:
-        return {"ok": False, "reason": "no crypto price/signal"}
-    st = _load()
-    cash = st["cash"]; qty = {"BTC": st["btc_qty"], "ETH": st["eth_qty"]}
-    price = {k: ps[k][0] for k in ("BTC", "ETH")}
-    signal = {k: ps[k][1] for k in ("BTC", "ETH")}
+    price, signal = _market()
+    if not price:
+        return {"ok": False, "reason": "no crypto prices"}
+    st, pos = _load()
+    cash = st["cash"]
+    symbols = list(price.keys())
+    n = len(crypto_strategy.ASSETS) or len(symbols)
+    for s in symbols:
+        pos.setdefault(s, 0.0)
 
-    equity = cash + sum(qty[k] * price[k] for k in qty)
+    equity = cash + sum(pos.get(s, 0) * price[s] for s in symbols)
     conn = get_connection()
     trades = []
-    for k in ("BTC", "ETH"):
-        target_val = TARGET_WEIGHT * equity if signal[k] == "HOLD" else 0.0
-        cur_val = qty[k] * price[k]
+    for s in symbols:
+        target_val = (equity / n) if signal.get(s) == "HOLD" else 0.0
+        cur_val = pos.get(s, 0) * price[s]
         diff = target_val - cur_val
-        if abs(diff) > equity * REBAL_THRESHOLD and price[k] > 0:
-            dqty = diff / price[k]
+        if abs(diff) > equity * REBAL_THRESHOLD and price[s] > 0:
+            dqty = diff / price[s]
             side = "BUY" if dqty > 0 else "SELL"
-            cash -= dqty * price[k]
-            qty[k] += dqty
-            reason = f"signal {signal[k]} → target {int(TARGET_WEIGHT*100) if signal[k]=='HOLD' else 0}%"
-            conn.execute("INSERT INTO crypto_paper_trades (ts, symbol, side, qty, price, value, reason) "
-                         "VALUES (?,?,?,?,?,?,?)",
-                         (time.time(), k, side, round(abs(dqty), 8), round(price[k], 2),
-                          round(abs(diff), 2), reason))
-            trades.append({"symbol": k, "side": side, "qty": round(abs(dqty), 6),
-                           "price": round(price[k], 2), "value": round(abs(diff), 2)})
+            cash -= dqty * price[s]
+            pos[s] = pos.get(s, 0) + dqty
+            conn.execute("INSERT INTO crypto_paper_trades (ts,symbol,side,qty,price,value,reason) VALUES (?,?,?,?,?,?,?)",
+                         (time.time(), s, side, round(abs(dqty), 8), round(price[s], 4),
+                          round(abs(diff), 2), f"signal {signal.get(s)}"))
+            conn.execute("INSERT INTO crypto_paper_positions (symbol, qty) VALUES (?,?) "
+                         "ON CONFLICT(symbol) DO UPDATE SET qty=excluded.qty", (s, pos[s]))
+            trades.append({"symbol": s, "side": side, "value": round(abs(diff), 2)})
 
-    equity = cash + sum(qty[k] * price[k] for k in qty)
-    conn.execute("UPDATE crypto_paper SET cash=?, btc_qty=?, eth_qty=?, last_step=? WHERE id=1",
-                 (cash, qty["BTC"], qty["ETH"], datetime.now().isoformat(timespec="seconds")))
-    conn.execute("INSERT INTO crypto_paper_equity (ts, equity, btc_sig, eth_sig) VALUES (?,?,?,?)",
-                 (time.time(), round(equity, 2), signal["BTC"], signal["ETH"]))
+    equity = cash + sum(pos.get(s, 0) * price[s] for s in symbols)
+    n_hold = sum(1 for s in symbols if signal.get(s) == "HOLD")
+    conn.execute("UPDATE crypto_paper SET cash=?, last_step=? WHERE id=1",
+                 (cash, datetime.now().isoformat(timespec="seconds")))
+    conn.execute("INSERT INTO crypto_paper_equity (ts, equity, n_holding) VALUES (?,?,?)",
+                 (time.time(), round(equity, 2), n_hold))
     conn.commit()
     conn.close()
-    return {"ok": True, "trades": trades, "equity": round(equity, 2)}
+    return {"ok": True, "trades": trades, "equity": round(equity, 2), "holding": n_hold}
 
 
 def status() -> dict:
-    st = _load()
-    ps = _prices_and_signals()
-    price = {k: ps.get(k, (0, "?", None))[0] for k in ("BTC", "ETH")}
-    signal = {k: ps.get(k, (0, "?", None))[1] for k in ("BTC", "ETH")}
-    qty = {"BTC": st["btc_qty"], "ETH": st["eth_qty"]}
-    equity = st["cash"] + sum(qty[k] * price[k] for k in qty)
+    st, pos = _load()
+    price, signal = _market()
+    symbols = [lbl for _, lbl, _ in crypto_strategy.ASSETS]
+    equity = st["cash"] + sum(pos.get(s, 0) * price.get(s, 0) for s in symbols)
     start = st["start_capital"] or STARTING_CAPITAL
 
     conn = get_connection()
-    eq_rows = conn.execute("SELECT equity FROM crypto_paper_equity ORDER BY ts").fetchall()
+    eq = [r["equity"] for r in conn.execute("SELECT equity FROM crypto_paper_equity ORDER BY ts").fetchall()]
     trades = [dict(r) for r in conn.execute(
-        "SELECT symbol, side, qty, price, value, created_at FROM crypto_paper_trades "
-        "ORDER BY id DESC LIMIT 15").fetchall()]
+        "SELECT symbol, side, qty, price, value, created_at FROM crypto_paper_trades ORDER BY id DESC LIMIT 15").fetchall()]
     n_trades = conn.execute("SELECT COUNT(*) FROM crypto_paper_trades").fetchone()[0]
     conn.close()
 
-    # max drawdown from equity history
     mdd = 0.0
-    if eq_rows:
-        curve = [r["equity"] for r in eq_rows]
-        peak = curve[0]
-        for v in curve:
-            peak = max(peak, v)
-            mdd = min(mdd, v / peak - 1)
+    if eq:
+        peak = eq[0]
+        for v in eq:
+            peak = max(peak, v); mdd = min(mdd, v / peak - 1)
+
+    positions = {}
+    for s in symbols:
+        val = pos.get(s, 0) * price.get(s, 0)
+        if val > 1 or signal.get(s):
+            positions[s] = {"value": round(val, 2), "signal": signal.get(s, "?"),
+                            "price": round(price.get(s, 0), 2)}
 
     return {
-        "ok": True,
-        "started_at": st["started_at"],
-        "last_step": st["last_step"],
-        "start_capital": round(start, 2),
-        "equity": round(equity, 2),
+        "ok": True, "started_at": st["started_at"], "last_step": st["last_step"],
+        "start_capital": round(start, 2), "equity": round(equity, 2),
         "return_pct": round((equity / start - 1) * 100, 2),
-        "max_drawdown_pct": round(mdd * 100, 2),
-        "cash": round(st["cash"], 2),
-        "positions": {
-            "BTC": {"qty": round(qty["BTC"], 6), "value": round(qty["BTC"] * price["BTC"], 2),
-                    "signal": signal["BTC"], "price": round(price["BTC"], 2)},
-            "ETH": {"qty": round(qty["ETH"], 6), "value": round(qty["ETH"] * price["ETH"], 2),
-                    "signal": signal["ETH"], "price": round(price["ETH"], 2)},
-        },
-        "n_trades": n_trades,
-        "recent_trades": trades,
-        "note": ("Paper only. Forward-testing the validated crypto trend rule to see if the "
-                 "backtested edge holds live before any real money. Extreme-risk strategy."),
+        "max_drawdown_pct": round(mdd * 100, 2), "cash": round(st["cash"], 2),
+        "invested_pct": round((equity - st["cash"]) / equity * 100, 1) if equity else 0,
+        "positions": positions, "n_trades": n_trades, "recent_trades": trades,
+        "note": ("Paper only. Forward-testing the multi-coin crypto trend rule before any real "
+                 "money. Extreme-risk strategy; equal-weight the coins currently in trend."),
     }

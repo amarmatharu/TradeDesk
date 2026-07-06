@@ -202,11 +202,11 @@ function CryptoPaperCard({ cp }) {
         <span style={tc.dim}>from ${cp.start_capital?.toLocaleString()} · maxDD {cp.max_drawdown_pct}% · {cp.n_trades} trades</span>
       </div>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 12, color: '#c9d1d9' }}>
-        <span>Cash: <b>${cp.cash?.toLocaleString()}</b></span>
-        {['BTC', 'ETH'].map(k => pos[k] && (
-          <span key={k}>{k}: <b style={{ color: pos[k].signal === 'HOLD' ? '#3fb950' : '#8b949e' }}>
-            {pos[k].value > 0 ? `$${pos[k].value.toLocaleString()}` : `flat (${pos[k].signal})`}</b></span>
+        <span>Cash: <b>${cp.cash?.toLocaleString()}</b> ({(100 - (cp.invested_pct || 0)).toFixed(0)}%)</span>
+        {Object.entries(pos).filter(([k, v]) => v.value > 1).map(([k, v]) => (
+          <span key={k}>{k}: <b style={{ color: '#3fb950' }}>${v.value.toLocaleString()}</b></span>
         ))}
+        {Object.values(pos).every(v => v.value <= 1) && <span style={{ color: '#8b949e' }}>fully in cash (nothing in trend)</span>}
       </div>
       {(cp.recent_trades || []).length > 0 && (
         <div style={{ fontSize: 11, color: '#8b949e' }}>
@@ -227,18 +227,21 @@ function CryptoCard({ c }) {
         <span style={{ ...tc.title, color: '#a371f7' }}>◈ CRYPTO TREND (BTC/ETH) — speculative</span>
         <span style={{ ...tc.proven, color: '#a371f7', borderColor: '#8957e5' }}>beats HODL · still −55% DD</span>
       </div>
-      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>
+      <div style={{ fontSize: 12, color: '#c9d1d9', marginBottom: 2 }}>
+        In trend (HOLD): {c.holding && c.holding.length
+          ? <b style={{ color: '#3fb950' }}>{c.holding.join(', ')}</b>
+          : <b style={{ color: '#8b949e' }}>none — all cash</b>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 6 }}>
         {c.assets.filter(a => a.ok).map(a => (
-          <div key={a.symbol} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <b style={{ color: '#e6edf3', fontSize: 14 }}>{a.symbol}</b>
-            <span style={{ fontWeight: 800, fontSize: 13, padding: '3px 10px', borderRadius: 6,
-              background: a.signal === 'HOLD' ? '#132a17' : '#2a1212',
-              color: a.signal === 'HOLD' ? '#3fb950' : '#f85149' }}>
-              {a.signal === 'HOLD' ? '▲ HOLD' : '▼ CASH'}
+          <div key={a.symbol} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+            <b style={{ color: a.signal === 'HOLD' ? '#3fb950' : '#8b949e', width: 42 }}>
+              {a.signal === 'HOLD' ? '▲' : '▼'} {a.symbol}
+            </b>
+            <span style={{ color: a.pct_vs_ma50 >= 0 ? '#3fb950' : '#f85149' }}>
+              {a.pct_vs_ma50 > 0 ? '+' : ''}{a.pct_vs_ma50}%
             </span>
-            <span style={{ fontSize: 11, color: '#8b949e' }}>
-              ${a.price?.toLocaleString()} · {a.pct_vs_ma50 > 0 ? '+' : ''}{a.pct_vs_ma50}% vs 50d
-            </span>
+            <span style={{ color: '#586069' }}>vs 50d</span>
           </div>
         ))}
       </div>
