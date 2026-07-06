@@ -9,6 +9,7 @@ export default function SystemHealth() {
   const [updated, setUpdated] = useState(null)
 
   const load = async () => {
+    // Core data — render as soon as this resolves (don't block on slow feeds).
     const [metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan] = await Promise.all([
       getMetrics().catch(() => ({})), getRecon().catch(() => ({})),
       getRegime().catch(() => ({})), getPromotion().catch(() => ({})),
@@ -16,12 +17,13 @@ export default function SystemHealth() {
       getTacticalAllocation().catch(() => ({})), getVolScaledAllocation().catch(() => ({})),
       getMasterPlan().catch(() => ({})),
     ])
-    const earnings = await getUpcomingEarnings(7).catch(() => ({ mine: [] }))
-    const crypto = await getCryptoSignal().catch(() => ({}))
-    const cryptoPaper = await getCryptoPaper().catch(() => ({}))
-    setD({ metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan, earnings, crypto, cryptoPaper })
+    setD(prev => ({ ...prev, metrics, recon, regime, promotion, validation, risk, tactical, volscaled, plan }))
     setUpdated(new Date())
     setLoading(false)
+    // Slower feeds (earnings + crypto's 10-coin fetch) fill in without blocking the page.
+    getUpcomingEarnings(7).then(earnings => setD(prev => ({ ...prev, earnings }))).catch(() => {})
+    getCryptoSignal().then(crypto => setD(prev => ({ ...prev, crypto }))).catch(() => {})
+    getCryptoPaper().then(cryptoPaper => setD(prev => ({ ...prev, cryptoPaper }))).catch(() => {})
   }
 
   useEffect(() => {
