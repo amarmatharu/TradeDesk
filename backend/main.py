@@ -117,6 +117,9 @@ async def startup_event():
     asyncio.create_task(_crypto_paper_loop())
     print("[TradeDesk] Crypto paper-trading loop started")
 
+    # Pre-warm slow caches (earnings + crypto) so the tabs load instantly
+    asyncio.create_task(_prewarm_caches())
+
 
 HEARTBEAT_FILE = "/tmp/tradedesk-heartbeat"
 _START_TIME = time.time()
@@ -129,6 +132,23 @@ async def _heartbeat_loop():
         except Exception:
             pass
         await asyncio.sleep(20)
+
+async def _prewarm_caches():
+    """Warm the slow earnings + crypto caches shortly after startup so the tabs
+    load instantly instead of blocking on a ~18s cold fetch."""
+    await asyncio.sleep(8)
+    try:
+        import earnings
+        await asyncio.to_thread(earnings.get_upcoming, 14)
+        print("[TradeDesk] Earnings cache warmed")
+    except Exception as e:
+        print(f"[TradeDesk] Earnings prewarm skipped: {str(e)[:100]}")
+    try:
+        import crypto_strategy
+        await asyncio.to_thread(crypto_strategy.current_signal)
+        print("[TradeDesk] Crypto cache warmed")
+    except Exception:
+        pass
 
 async def _crypto_paper_loop():
     """Step the crypto paper strategy on startup, then every 3h. Crypto is 24/7
@@ -957,7 +977,7 @@ async def earnings_upcoming(days: int = 14):
     watchlist/holdings flagged and surfaced first."""
     import earnings
     try:
-        return earnings.get_upcoming(days)
+        return await asyncio.to_thread(earnings.get_upcoming, days)
     except Exception as e:
         return {"error": str(e)[:200], "mine": [], "all": []}
 
