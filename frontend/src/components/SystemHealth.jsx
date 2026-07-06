@@ -210,11 +210,28 @@ function CryptoPaperCard({ cp }) {
         ))}
         {Object.values(pos).every(v => v.value <= 1) && <span style={{ color: '#8b949e' }}>fully in cash (nothing in trend)</span>}
       </div>
-      {(cp.recent_trades || []).length > 0 && (
-        <div style={{ fontSize: 11, color: '#8b949e' }}>
-          Recent: {cp.recent_trades.slice(0, 4).map((t, i) =>
-            `${t.side} ${t.symbol} $${t.value?.toLocaleString()}`).join(' · ')}
+      {(cp.recent_trades || []).length > 0 ? (
+        <div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#8b949e', letterSpacing: 1, marginBottom: 4 }}>
+            TRADE LOG ({cp.n_trades})
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <tbody>
+              {cp.recent_trades.map((t, i) => (
+                <tr key={i} style={{ borderBottom: '1px solid #21262d' }}>
+                  <td style={{ padding: '3px 8px 3px 0', fontSize: 11, color: '#8b949e', whiteSpace: 'nowrap' }}>{t.created_at}</td>
+                  <td style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700,
+                    color: t.side === 'BUY' ? '#3fb950' : '#f85149' }}>{t.side}</td>
+                  <td style={{ padding: '3px 8px', fontSize: 12, fontWeight: 700, color: '#e6edf3' }}>{t.symbol}</td>
+                  <td style={{ padding: '3px 8px', fontSize: 12, color: '#c9d1d9' }}>${t.value?.toLocaleString()}</td>
+                  <td style={{ padding: '3px 8px', fontSize: 11, color: '#8b949e' }}>{t.qty} @ ${t.price?.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+      ) : (
+        <div style={{ fontSize: 11, color: '#8b949e' }}>No trades yet — waiting for a coin to enter its trend.</div>
       )}
       <div style={{ fontSize: 10, color: '#8b949e' }}>{cp.note}</div>
     </div>
