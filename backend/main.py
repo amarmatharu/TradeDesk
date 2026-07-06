@@ -131,8 +131,8 @@ async def _heartbeat_loop():
         await asyncio.sleep(20)
 
 async def _crypto_paper_loop():
-    """Step the crypto paper strategy on startup, then every 6h (crypto is 24/7,
-    but the 50-day daily signal only changes daily, so 6h is ample)."""
+    """Step the crypto paper strategy on startup, then every 3h. Crypto is 24/7
+    and price can cross its 50-day line at any hour, so we check through the night."""
     import crypto_paper
     await asyncio.sleep(15)          # let startup settle
     while True:
@@ -142,7 +142,7 @@ async def _crypto_paper_loop():
                 print(f"[CryptoPaper] rebalanced: {r['trades']} equity=${r.get('equity')}")
         except Exception as e:
             print(f"[CryptoPaper] step error: {str(e)[:120]}")
-        await asyncio.sleep(6 * 3600)
+        await asyncio.sleep(3 * 3600)
 
 @app.on_event("shutdown")
 async def shutdown_event():
